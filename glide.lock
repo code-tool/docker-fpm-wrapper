@@ -1,0 +1,20 @@
+hash: 69dec821f0aa0be72d1b56a657835cf510ff46f052690f4ef757d50673ef8b55
+updated: 2017-07-25T12:33:52.690222373+03:00
+imports:
+- name: github.com/FZambia/viper-lite
+  version: 37be0269e490310eea4f60de52315056cd463d85
+- name: github.com/mitchellh/mapstructure
+  version: d0303fe809921458f417bcf828397a65db30a7e4
+- name: github.com/pelletier/go-buffruneio
+  version: c37440a7cf42ac63b919c752ca73a85067e05992
+- name: github.com/pelletier/go-toml
+  version: 4a000a21a414d139727f616a8bb97f847b1b310b
+- name: github.com/spf13/cast
+  version: acbeb36b902d72a7a4c18e8f3241075e7ab763e4
+- name: github.com/spf13/jwalterweatherman
+  version: 0efa5202c04663c757d84f90f5219c1250baf94f
+- name: github.com/spf13/pflag
+  version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
+- name: gopkg.in/yaml.v2
+  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
+testImports: []

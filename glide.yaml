@@ -1,0 +1,4 @@
+package: github.com/code-tool/docker-fpm-wrapper
+import:
+- package: github.com/FZambia/viper-lite
+- package: github.com/spf13/pflag
