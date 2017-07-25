@@ -13,7 +13,7 @@ import (
 
 func init() {
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
-	pflag.StringP("socket", "s", "", "path to socket")
+	pflag.StringP("socket", "s", "socket.sock", "path to socket")
 	pflag.Parse()
 
 	viper.BindPFlags(pflag.CommandLine)
