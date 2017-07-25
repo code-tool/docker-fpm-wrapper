@@ -20,6 +20,11 @@ func init() {
 }
 
 func main() {
+	if viper.GetString("fpm") == "" {
+		fmt.Println("php-fpm path not set")
+		os.Exit(1)
+	}
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt)
 	signal.Notify(signalCh, os.Kill)
