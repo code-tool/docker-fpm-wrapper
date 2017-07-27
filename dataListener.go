@@ -53,8 +53,11 @@ func (l *DataListener) initSocket() error {
 	}
 
 	l.listener, err = net.Listen("unix", l.socketPath)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return os.Chmod(l.socketPath, 0777)
 }
 
 func (l *DataListener) acceptConnections() {
