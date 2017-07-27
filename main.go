@@ -13,13 +13,18 @@ import (
 
 func init() {
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
-	pflag.StringP("socket", "s", "", "path to socket")
+	pflag.StringP("socket", "s", "/tmp/fpm-wrapper.sock", "path to socket")
 	pflag.Parse()
 
 	viper.BindPFlags(pflag.CommandLine)
 }
 
 func main() {
+	if viper.GetString("fpm") == "" {
+		fmt.Println("php-fpm path not set")
+		os.Exit(1)
+	}
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt)
 	signal.Notify(signalCh, os.Kill)
@@ -28,7 +33,7 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("LOGGER_SOCK_PATH=%s", viper.GetString("socket")))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", viper.GetString("socket")))
 	cmd.Args = append(cmd.Args, "--nodaemonize")
 	cmd.Args = append(cmd.Args, findFpmArgs()...)
 
