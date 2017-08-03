@@ -1,5 +1,5 @@
-hash: 69dec821f0aa0be72d1b56a657835cf510ff46f052690f4ef757d50673ef8b55
-updated: 2017-07-25T12:33:52.690222373+03:00
+hash: 676efb07138ea446b2908d0c3b566b2255e8934bfde04c7592e11dc5c3d8675c
+updated: 2017-08-01T13:27:23.516343889+03:00
 imports:
 - name: github.com/FZambia/viper-lite
   version: 37be0269e490310eea4f60de52315056cd463d85
@@ -15,6 +15,8 @@ imports:
   version: 0efa5202c04663c757d84f90f5219c1250baf94f
 - name: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
+- name: github.com/tomasen/fcgi_client
+  version: b116e704d8674fccc547f9a4d197d6a7bd22ca61
 - name: gopkg.in/yaml.v2
   version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports: []
