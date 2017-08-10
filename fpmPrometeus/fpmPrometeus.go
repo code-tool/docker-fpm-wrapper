@@ -237,33 +237,34 @@ func (e *FPMPoolStatus) reset() {
 	e.slowRequests.Reset()
 }
 
+func setAndCollect(gaugeVec *prometheus.GaugeVec, poolName string, val int, ch chan<- prometheus.Metric) {
+	gauge := gaugeVec.WithLabelValues(poolName)
+	gauge.Set(float64(val))
+	gauge.Collect(ch)
+}
+
+func addAndCollect(counterVec *prometheus.CounterVec, poolName string, val int, ch chan<- prometheus.Metric) {
+	counter := counterVec.WithLabelValues(poolName)
+	counter.Add(float64(val))
+	counter.Collect(ch)
+}
+
 func (e *FPMPoolStatus) Collect(ch chan<- prometheus.Metric) {
 	e.resetMetrics()
 	statuses := e.stat.GetStatuses()
 	for _, p := range statuses {
-		e.listenQueue.WithLabelValues(p.Name).Set(float64(p.ListenQueue))
-		e.listenQueueLen.WithLabelValues(p.Name).Set(float64(p.ListenQueueLen))
-		e.idleProcesses.WithLabelValues(p.Name).Set(float64(p.IdleProcesses))
-		e.activeProcesses.WithLabelValues(p.Name).Set(float64(p.ActiveProcesses))
-		e.totalProcesses.WithLabelValues(p.Name).Set(float64(p.TotalProcesses))
-		e.startSince.WithLabelValues(p.Name).Add(float64(p.StartSince))
-		e.acceptedConn.WithLabelValues(p.Name).Add(float64(p.AcceptedConn))
-		e.maxListenQueue.WithLabelValues(p.Name).Add(float64(p.MaxListenQueue))
-		e.maxActiveProcesses.WithLabelValues(p.Name).Add(float64(p.MaxActiveProcesses))
-		e.maxChildrenReached.WithLabelValues(p.Name).Add(float64(p.MaxChildrenReached))
-		e.slowRequests.WithLabelValues(p.Name).Add(float64(p.SlowRequests))
+		setAndCollect(e.listenQueue, p.Name, p.ListenQueue, ch)
+		setAndCollect(e.listenQueueLen, p.Name, p.ListenQueueLen, ch)
+		setAndCollect(e.idleProcesses, p.Name, p.IdleProcesses, ch)
+		setAndCollect(e.activeProcesses, p.Name, p.ActiveProcesses, ch)
+		setAndCollect(e.totalProcesses, p.Name, p.TotalProcesses, ch)
 
-		e.listenQueue.WithLabelValues(p.Name).Collect(ch)
-		e.listenQueueLen.WithLabelValues(p.Name).Collect(ch)
-		e.idleProcesses.WithLabelValues(p.Name).Collect(ch)
-		e.activeProcesses.WithLabelValues(p.Name).Collect(ch)
-		e.totalProcesses.WithLabelValues(p.Name).Collect(ch)
-		e.startSince.WithLabelValues(p.Name).Collect(ch)
-		e.acceptedConn.WithLabelValues(p.Name).Collect(ch)
-		e.maxListenQueue.WithLabelValues(p.Name).Collect(ch)
-		e.maxActiveProcesses.WithLabelValues(p.Name).Collect(ch)
-		e.maxChildrenReached.WithLabelValues(p.Name).Collect(ch)
-		e.slowRequests.WithLabelValues(p.Name).Collect(ch)
+		addAndCollect(e.startSince, p.Name, p.StartSince, ch)
+		addAndCollect(e.acceptedConn, p.Name, p.AcceptedConn, ch)
+		addAndCollect(e.maxListenQueue, p.Name, p.MaxListenQueue, ch)
+		addAndCollect(e.maxActiveProcesses, p.Name, p.MaxActiveProcesses, ch)
+		addAndCollect(e.maxChildrenReached, p.Name, p.MaxChildrenReached, ch)
+		addAndCollect(e.slowRequests, p.Name, p.SlowRequests, ch)
 	}
 }
 
