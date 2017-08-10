@@ -22,7 +22,7 @@ func init() {
 
 	pflag.BoolP("prometheus", "p", false, "enable prometheus statistic")
 	pflag.String("prometheus-addr", ":8080", "prometheus statistic addr")
-	pflag.String("prometheus-path", "/prometheus", "prometheus statistic path")
+	pflag.String("prometheus-path", "/metrics", "prometheus statistic path")
 	pflag.Duration("fpm-statuses-update-interval", 10*time.Second, "fpm statuses update interval")
 	pflag.String("fpm-config", "/etc/php/php-fpm.conf", "path to php-fpm config file")
 	pflag.Parse()
