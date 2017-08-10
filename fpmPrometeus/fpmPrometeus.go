@@ -45,17 +45,21 @@ func Register(fpmConfigPath string, update time.Duration) error {
 	if err != nil {
 		return err
 	}
-	fmpStatus := NewFPMPoolStatus(cfg.Pools)
-	prometheus.MustRegister(fmpStatus)
+	fpmStatus := NewFPMPoolStatus(cfg.Pools)
+	prometheus.MustRegister(fpmStatus)
 
-	go func() {
-		for {
-			go fmpStatus.stat.UpdateStatuses()
-			time.Sleep(update)
-		}
-	}()
-
+	go startUpdateStatuses(fpmStatus, update)
 	return nil
+}
+
+func startUpdateStatuses(fpmStatus *FPMPoolStatus, update time.Duration) {
+	var t time.Time
+	for {
+		t = time.Now()
+		fpmStatus.stat.UpdateStatuses()
+		sleep := update - time.Now().Sub(t)
+		time.Sleep(sleep)
+	}
 }
 
 func (s *stat) GetStatuses() []Status {
@@ -100,27 +104,13 @@ type FPMPoolStatus struct {
 	idleProcesses   *prometheus.GaugeVec
 	activeProcesses *prometheus.GaugeVec
 	totalProcesses  *prometheus.GaugeVec
+	acceptedConn    *prometheus.GaugeVec
 
-	startSince         *prometheus.CounterVec
-	acceptedConn       *prometheus.CounterVec
-	maxListenQueue     *prometheus.CounterVec
-	maxActiveProcesses *prometheus.CounterVec
-	maxChildrenReached *prometheus.CounterVec
-	slowRequests       *prometheus.CounterVec
-}
-
-func (e *FPMPoolStatus) resetMetrics() {
-	e.listenQueue.Reset()
-	e.listenQueueLen.Reset()
-	e.idleProcesses.Reset()
-	e.activeProcesses.Reset()
-	e.totalProcesses.Reset()
-	e.startSince.Reset()
-	e.acceptedConn.Reset()
-	e.maxListenQueue.Reset()
-	e.maxActiveProcesses.Reset()
-	e.maxChildrenReached.Reset()
-	e.slowRequests.Reset()
+	startSince         *prometheus.GaugeVec
+	maxListenQueue     *prometheus.GaugeVec
+	maxActiveProcesses *prometheus.GaugeVec
+	maxChildrenReached *prometheus.GaugeVec
+	slowRequests       *prometheus.GaugeVec
 }
 
 func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
@@ -132,16 +122,16 @@ func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
 			pools:    pools,
 			statuses: make([]Status, len(pools)),
 		},
-		startSince: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+		startSince: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "start_since",
 				Help:      "Number of seconds since FPM has started",
 			},
 			poolLabelNames,
 		),
-		acceptedConn: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+		acceptedConn: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "accepted_conn",
 				Help:      "The number of requests accepted by the pool",
@@ -156,8 +146,8 @@ func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
 			},
 			poolLabelNames,
 		),
-		maxListenQueue: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+		maxListenQueue: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "max_listen_queue",
 				Help:      "The maximum number of requests in the queue of pending connections since FPM has started",
@@ -196,24 +186,24 @@ func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
 			},
 			poolLabelNames,
 		),
-		maxActiveProcesses: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+		maxActiveProcesses: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "max_active_processes",
 				Help:      "The maximum number of active processes since FPM has started",
 			},
 			poolLabelNames,
 		),
-		maxChildrenReached: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+		maxChildrenReached: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "max_children_reached",
 				Help:      "The number of times, the process limit has been reached, when pm tries to start more children (works only for pm 'dynamic' and 'ondemand')",
 			},
 			poolLabelNames,
 		),
-		slowRequests: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
+		slowRequests: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "slow_requests",
 				Help:      "The number of requests that exceeded your request_slowlog_timeout value",
@@ -223,34 +213,13 @@ func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
 	}
 }
 
-func (e *FPMPoolStatus) reset() {
-	e.listenQueue.Reset()
-	e.listenQueueLen.Reset()
-	e.idleProcesses.Reset()
-	e.activeProcesses.Reset()
-	e.totalProcesses.Reset()
-	e.startSince.Reset()
-	e.acceptedConn.Reset()
-	e.maxListenQueue.Reset()
-	e.maxActiveProcesses.Reset()
-	e.maxChildrenReached.Reset()
-	e.slowRequests.Reset()
-}
-
 func setAndCollect(gaugeVec *prometheus.GaugeVec, poolName string, val int, ch chan<- prometheus.Metric) {
 	gauge := gaugeVec.WithLabelValues(poolName)
 	gauge.Set(float64(val))
 	gauge.Collect(ch)
 }
 
-func addAndCollect(counterVec *prometheus.CounterVec, poolName string, val int, ch chan<- prometheus.Metric) {
-	counter := counterVec.WithLabelValues(poolName)
-	counter.Add(float64(val))
-	counter.Collect(ch)
-}
-
 func (e *FPMPoolStatus) Collect(ch chan<- prometheus.Metric) {
-	e.resetMetrics()
 	statuses := e.stat.GetStatuses()
 	for _, p := range statuses {
 		setAndCollect(e.listenQueue, p.Name, p.ListenQueue, ch)
@@ -258,13 +227,12 @@ func (e *FPMPoolStatus) Collect(ch chan<- prometheus.Metric) {
 		setAndCollect(e.idleProcesses, p.Name, p.IdleProcesses, ch)
 		setAndCollect(e.activeProcesses, p.Name, p.ActiveProcesses, ch)
 		setAndCollect(e.totalProcesses, p.Name, p.TotalProcesses, ch)
-
-		addAndCollect(e.startSince, p.Name, p.StartSince, ch)
-		addAndCollect(e.acceptedConn, p.Name, p.AcceptedConn, ch)
-		addAndCollect(e.maxListenQueue, p.Name, p.MaxListenQueue, ch)
-		addAndCollect(e.maxActiveProcesses, p.Name, p.MaxActiveProcesses, ch)
-		addAndCollect(e.maxChildrenReached, p.Name, p.MaxChildrenReached, ch)
-		addAndCollect(e.slowRequests, p.Name, p.SlowRequests, ch)
+		setAndCollect(e.acceptedConn, p.Name, p.AcceptedConn, ch)
+		setAndCollect(e.startSince, p.Name, p.StartSince, ch)
+		setAndCollect(e.maxListenQueue, p.Name, p.MaxListenQueue, ch)
+		setAndCollect(e.maxActiveProcesses, p.Name, p.MaxActiveProcesses, ch)
+		setAndCollect(e.maxChildrenReached, p.Name, p.MaxChildrenReached, ch)
+		setAndCollect(e.slowRequests, p.Name, p.SlowRequests, ch)
 	}
 }
 
