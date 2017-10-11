@@ -33,3 +33,4 @@ deploy:
   skip_cleanup: true
   on:
     repo: code-tool/docker-fpm-wrapper
+    tags: true
