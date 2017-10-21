@@ -10,9 +10,9 @@ before_install:
   - sudo apt-get install -y php5-fpm
 
 install:
-  - wget "https://github.com/Masterminds/glide/releases/download/v0.13.0/glide-v0.13.0-linux-amd64.tar.gz"
+  - wget -O glide.tar.gz "https://github.com/Masterminds/glide/releases/download/v0.13.0/glide-v0.13.0-linux-amd64.tar.gz"
   - mkdir -p $HOME/bin
-  - tar -vxz -C $HOME/bin --strip=1 -f glide-0.13.0-linux-amd64.tar.gz
+  - tar -vxz -C $HOME/bin --strip=1 -f glide.tar.gz
   - export PATH="$HOME/bin:$PATH"
   - glide i
   - go build
