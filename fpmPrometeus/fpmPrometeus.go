@@ -1,42 +1,22 @@
 package fpmPrometeus
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tomasen/fcgi_client"
 
 	"github.com/code-tool/docker-fpm-wrapper/fpmConfig"
+	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
 const namespace = "phpfpm"
 
-type Status struct {
-	Name               string `json:"pool"`
-	ProcessManager     string `json:"process manager"`
-	StartTime          int    `json:"start time"`
-	StartSince         int    `json:"start since"`
-	AcceptedConn       int    `json:"accepted conn"`
-	ListenQueue        int    `json:"listen queue"`
-	MaxListenQueue     int    `json:"max listen queue"`
-	ListenQueueLen     int    `json:"listen queue len"`
-	IdleProcesses      int    `json:"idle processes"`
-	ActiveProcesses    int    `json:"active processes"`
-	TotalProcesses     int    `json:"total processes"`
-	MaxActiveProcesses int    `json:"max active processes"`
-	MaxChildrenReached int    `json:"max children reached"`
-	SlowRequests       int    `json:"slow requests"`
-}
-
 type stat struct {
 	mu       *sync.Mutex
-	statuses []Status
+	statuses []phpfpm.Status
 	pools    []fpmConfig.Pool
 }
 
@@ -62,19 +42,26 @@ func startUpdateStatuses(fpmStatus *FPMPoolStatus, update time.Duration) {
 	}
 }
 
-func (s *stat) GetStatuses() []Status {
+func (s *stat) GetStatuses() []phpfpm.Status {
 	s.mu.Lock()
-	statuses := make([]Status, len(s.statuses))
+	statuses := make([]phpfpm.Status, len(s.statuses))
 	copy(statuses, s.statuses)
 	s.mu.Unlock()
 	return statuses
 }
 
 func (s *stat) UpdateStatuses() error {
-	statusCh := make(chan Status, 1)
+	statusCh := make(chan phpfpm.Status, 1)
 	errCh := make(chan error, 1)
 	for _, pool := range s.pools {
-		go getStats(pool.Listen, pool.StatusPath, statusCh, errCh)
+		go func() {
+			status, err := phpfpm.GetStats(pool.Listen, pool.StatusPath)
+			if err != nil {
+				errCh <- err
+			} else {
+				statusCh <- *status
+			}
+		}()
 	}
 
 	errors := []string{}
@@ -120,7 +107,7 @@ func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
 		stat: stat{
 			mu:       &sync.Mutex{},
 			pools:    pools,
-			statuses: make([]Status, len(pools)),
+			statuses: make([]phpfpm.Status, len(pools)),
 		},
 		startSince: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -248,44 +235,4 @@ func (e *FPMPoolStatus) Describe(ch chan<- *prometheus.Desc) {
 	e.maxActiveProcesses.Describe(ch)
 	e.maxChildrenReached.Describe(ch)
 	e.slowRequests.Describe(ch)
-}
-
-func getStats(socket, script string, statusCh chan Status, errCh chan error) {
-	if socket == "" {
-		return
-	}
-
-	env := map[string]string{
-		"QUERY_STRING":    "json&full",
-		"SCRIPT_FILENAME": script,
-		"SCRIPT_NAME":     script,
-	}
-
-	fcgi, err := fcgiclient.Dial("unix", socket)
-	if err != nil {
-		errCh <- err
-		return
-	}
-	defer fcgi.Close()
-
-	resp, err := fcgi.Get(env)
-	if err != nil && err != io.EOF {
-		errCh <- err
-		return
-	}
-	defer resp.Body.Close()
-
-	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil && err != io.EOF {
-		errCh <- err
-		return
-	}
-	s := Status{}
-	err = json.Unmarshal(content, &s)
-	if err != nil {
-		errCh <- err
-		return
-	}
-
-	statusCh <- s
 }

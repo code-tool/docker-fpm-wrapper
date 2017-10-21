@@ -18,16 +18,35 @@ import (
 
 func init() {
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
+	pflag.StringP("fpm-config", "y", "/etc/php/php-fpm.conf", "path to php-fpm config file")
+
 	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to socket")
 
-	pflag.BoolP("prometheus", "p", false, "enable prometheus statistic")
-	pflag.String("prometheus-addr", ":8080", "prometheus statistic addr")
-	pflag.String("prometheus-path", "/metrics", "prometheus statistic path")
-	pflag.Duration("fpm-statuses-update-interval", 10*time.Second, "fpm statuses update interval")
-	pflag.String("fpm-config", "/etc/php/php-fpm.conf", "path to php-fpm config file")
+	pflag.Bool("scrape", false, "Enable prometheus statistic")
+	pflag.Duration("scrape-interval", 10*time.Second, "fpm statuses update interval")
+
+	pflag.String("listen", ":8080", "prometheus statistic addr")
+	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
+
 	pflag.Parse()
 
 	viper.BindPFlags(pflag.CommandLine)
+}
+
+func findFpmArgs() []string {
+	doubleDashIndex := -1
+
+	for i := range os.Args {
+		if os.Args[i] == "--" {
+			doubleDashIndex = i
+			break
+		}
+	}
+	if doubleDashIndex == -1 || doubleDashIndex+1 == len(os.Args) {
+		return nil
+	}
+
+	return os.Args[doubleDashIndex+1:]
 }
 
 func main() {
@@ -46,6 +65,7 @@ func main() {
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", viper.GetString("wrapper-socket")))
 	cmd.Args = append(cmd.Args, "--nodaemonize")
+	cmd.Args = append(cmd.Args, "--fpm-config", viper.GetString("fpm-config"))
 	cmd.Args = append(cmd.Args, findFpmArgs()...)
 
 	err := cmd.Start()
@@ -61,14 +81,20 @@ func main() {
 		procErrCh <- cmd.Wait()
 	}()
 
-	dataChan := make(chan string, 1)
 	errCh := make(chan error, 1)
+
+	dataChan := make(chan string, 1)
 	dataListener := NewDataListener(viper.GetString("wrapper-socket"), dataChan, errCh)
 	dataListener.Start()
 	defer dataListener.Stop()
 
-	if viper.GetBool("prometheus") {
-		go startPrometheus()
+	http.Handle(viper.GetString("metrics-path"), promhttp.Handler())
+	go func() {
+		errCh <- http.ListenAndServe(viper.GetString("listen"), nil)
+	}()
+
+	if viper.GetBool("scrape") {
+		fpmPrometeus.Register(viper.GetString("fpm-config"), viper.GetDuration("scrape-interval"))
 	}
 
 	for {
@@ -83,8 +109,8 @@ func main() {
 			if err == nil {
 				os.Exit(0)
 			}
-			if exiterr, ok := err.(*exec.ExitError); ok {
-				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
 					os.Exit(status.ExitStatus())
 				}
 			} else {
@@ -92,28 +118,6 @@ func main() {
 			}
 		}
 	}
-}
-
-func startPrometheus() {
-	fpmPrometeus.Register(viper.GetString("fpm-config"), viper.GetDuration("fpm-statuses-update-interval"))
-	http.Handle(viper.GetString("prometheus-path"), promhttp.Handler())
-	http.ListenAndServe(viper.GetString("prometheus-addr"), nil)
-}
-
-func findFpmArgs() []string {
-	doubleDashIndex := -1
-
-	for i := range os.Args {
-		if os.Args[i] == "--" {
-			doubleDashIndex = i
-			break
-		}
-	}
-	if doubleDashIndex == -1 || doubleDashIndex+1 == len(os.Args) {
-		return nil
-	}
-
-	return os.Args[doubleDashIndex+1:]
 }
 
 func handleSignals(cmd *exec.Cmd, signalCh chan os.Signal) {
