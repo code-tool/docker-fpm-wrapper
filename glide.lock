@@ -1,5 +1,5 @@
 hash: 7baccc93a74411638de59867312cc9895db50c5ed394ac590d3144032c6b6d03
-updated: 2017-08-07T15:51:54.124919521+03:00
+updated: 2017-10-21T19:59:41.963882175+03:00
 imports:
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
@@ -22,9 +22,10 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 4a000a21a414d139727f616a8bb97f847b1b310b
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
+  - prometheus/promhttp
 - name: github.com/prometheus/client_model
   version: 6f3806018612930941127f2a7c6c453ba2c527d2
   subpackages:
@@ -52,7 +53,7 @@ imports:
 - name: github.com/tomasen/fcgi_client
   version: b116e704d8674fccc547f9a4d197d6a7bd22ca61
 - name: gopkg.in/ini.v1
-  version: d3de07a94d22b4a0972deb4b96d790c2c0ce8333
+  version: 5b3e00af70a9484542169a976dcab8d03e601a17
 - name: gopkg.in/yaml.v2
   version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports:
