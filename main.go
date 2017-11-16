@@ -55,6 +55,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	var err error
+	errCh := make(chan error, 1)
+	dataChan := make(chan string, 1)
+
+	dataListener := NewDataListener(viper.GetString("wrapper-socket"), dataChan, errCh)
+	if err = dataListener.Start(); err != nil {
+		fmt.Printf("Can't start listen: %v", err)
+		os.Exit(1)
+	}
+	defer dataListener.Stop()
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt)
 	signal.Notify(signalCh, os.Kill)
@@ -68,8 +79,7 @@ func main() {
 	cmd.Args = append(cmd.Args, "--fpm-config", viper.GetString("fpm-config"))
 	cmd.Args = append(cmd.Args, findFpmArgs()...)
 
-	err := cmd.Start()
-	if err != nil {
+	if err = cmd.Start(); err != nil {
 		fmt.Printf("exec.Command: %v", err)
 		os.Exit(1)
 	}
@@ -80,13 +90,6 @@ func main() {
 	go func() {
 		procErrCh <- cmd.Wait()
 	}()
-
-	errCh := make(chan error, 1)
-
-	dataChan := make(chan string, 1)
-	dataListener := NewDataListener(viper.GetString("wrapper-socket"), dataChan, errCh)
-	dataListener.Start()
-	defer dataListener.Stop()
 
 	http.Handle(viper.GetString("metrics-path"), promhttp.Handler())
 	go func() {
