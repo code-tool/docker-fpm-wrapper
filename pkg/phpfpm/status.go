@@ -47,7 +47,7 @@ func GetStats(listen, statusPath string) (*Status, error) {
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer tryClose(resp.Body)
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil && err != io.EOF {
@@ -60,4 +60,11 @@ func GetStats(listen, statusPath string) (*Status, error) {
 	}
 
 	return &s, nil
+}
+
+func tryClose(closer io.ReadCloser) {
+	if closer == nil {
+		return
+	}
+	closer.Close()
 }
