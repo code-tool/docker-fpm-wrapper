@@ -1,36 +1,74 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+
+	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
 
 type DataListener struct {
 	socketPath string
 	listener   net.Listener
-	dataChan   chan string
-	errorChan  chan error
+	rPool      *util.ReaderPool
+
+	dataChan  chan []byte
+	errorChan chan error
 }
 
-func NewDataListener(socketPath string, dataChan chan string, errorChan chan error) *DataListener {
-	return &DataListener{socketPath, nil, dataChan, errorChan}
+func NewDataListener(socketPath string, rPool *util.ReaderPool, dataChan chan []byte, errorChan chan error) *DataListener {
+	return &DataListener{socketPath: socketPath, rPool: rPool, dataChan: dataChan, errorChan: errorChan}
+}
+
+func readLine(r *bufio.Reader) ([]byte, error) {
+	skip := false
+
+	for {
+		line, isPrefix, err := r.ReadLine()
+		if err != nil {
+			return nil, err
+		}
+
+		if !isPrefix {
+			if skip {
+				return nil, nil
+			}
+
+			return line, nil
+		}
+
+		if isPrefix {
+			// warning! Line is too long
+			skip = true
+		}
+	}
 }
 
 func (l *DataListener) handleConnection(conn net.Conn) {
-	buf := bytes.NewBuffer(make([]byte, 0, bytes.MinRead))
+	reader := l.rPool.Get(conn)
 
-	_, err := buf.ReadFrom(conn)
-	conn.Close()
+	for {
+		line, err := readLine(reader)
 
-	if err != nil {
-		l.errorChan <- err
-		return
+		if line != nil && len(line) > 0 {
+			l.dataChan <- line
+		}
+
+		if err != nil {
+			if err != io.EOF {
+				l.errorChan <- err
+			}
+
+			break
+		}
 	}
 
-	l.dataChan <- buf.String()
+	l.rPool.Put(reader)
+	conn.Close()
 }
 
 func (l *DataListener) initSocket() error {

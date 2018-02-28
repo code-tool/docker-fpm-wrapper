@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/code-tool/docker-fpm-wrapper/fpmPrometeus"
+	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
 
 func init() {
@@ -27,6 +28,9 @@ func init() {
 
 	pflag.String("listen", ":8080", "prometheus statistic addr")
 	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
+
+	pflag.Uint("max-queue-size", 100, "Max pending logs size before trotling")
+	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
 
 	pflag.Parse()
 
@@ -57,9 +61,14 @@ func main() {
 
 	var err error
 	errCh := make(chan error, 1)
-	dataChan := make(chan string, 1)
+	dataChan := make(chan []byte, viper.GetInt("max-queue-size"))
 
-	dataListener := NewDataListener(viper.GetString("wrapper-socket"), dataChan, errCh)
+	dataListener := NewDataListener(
+		viper.GetString("wrapper-socket"),
+		util.NewReaderPool(viper.GetInt("line-buffer-size")),
+		dataChan,
+		errCh)
+
 	if err = dataListener.Start(); err != nil {
 		fmt.Printf("Can't start listen: %v", err)
 		os.Exit(1)
@@ -103,7 +112,8 @@ func main() {
 	for {
 		select {
 		case data := <-dataChan:
-			os.Stderr.WriteString(data)
+			os.Stderr.Write(data)
+			os.Stderr.Write([]byte{'\n'})
 		case err := <-errCh:
 			if err != nil {
 				panic(err)
