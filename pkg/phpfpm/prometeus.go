@@ -1,4 +1,4 @@
-package fpmPrometeus
+package phpfpm
 
 import (
 	"fmt"
@@ -9,18 +9,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/code-tool/docker-fpm-wrapper/fpmConfig"
-	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
 const namespace = "phpfpm"
 
 type stat struct {
 	mu       *sync.Mutex
-	statuses []phpfpm.Status
+	statuses []Status
 	pools    []fpmConfig.Pool
 }
 
-func Register(fpmConfigPath string, update time.Duration) error {
+func RegisterPrometheus(fpmConfigPath string, update time.Duration) error {
 	cfg, err := fpmConfig.Parse(fpmConfigPath)
 	if err != nil {
 		return err
@@ -42,20 +41,20 @@ func startUpdateStatuses(fpmStatus *FPMPoolStatus, update time.Duration) {
 	}
 }
 
-func (s *stat) GetStatuses() []phpfpm.Status {
+func (s *stat) GetStatuses() []Status {
 	s.mu.Lock()
-	statuses := make([]phpfpm.Status, len(s.statuses))
+	statuses := make([]Status, len(s.statuses))
 	copy(statuses, s.statuses)
 	s.mu.Unlock()
 	return statuses
 }
 
 func (s *stat) UpdateStatuses() error {
-	statusCh := make(chan phpfpm.Status, 1)
+	statusCh := make(chan Status, 1)
 	errCh := make(chan error, 1)
 	for _, pool := range s.pools {
 		go func() {
-			status, err := phpfpm.GetStats(pool.Listen, pool.StatusPath)
+			status, err := GetStats(pool.Listen, pool.StatusPath)
 			if err != nil {
 				errCh <- err
 			} else {
@@ -107,7 +106,7 @@ func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
 		stat: stat{
 			mu:       &sync.Mutex{},
 			pools:    pools,
-			statuses: make([]phpfpm.Status, len(pools)),
+			statuses: make([]Status, len(pools)),
 		},
 		startSince: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{

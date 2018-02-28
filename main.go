@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 
-	"github.com/code-tool/docker-fpm-wrapper/fpmPrometeus"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
+	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
 func init() {
@@ -106,7 +106,7 @@ func main() {
 	}()
 
 	if viper.GetBool("scrape") {
-		fpmPrometeus.Register(viper.GetString("fpm-config"), viper.GetDuration("scrape-interval"))
+		phpfpm.RegisterPrometheus(viper.GetString("fpm-config"), viper.GetDuration("scrape-interval"))
 	}
 
 	for {
