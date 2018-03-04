@@ -23,8 +23,7 @@ func init() {
 
 	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to socket")
 
-	pflag.Bool("scrape", false, "Enable prometheus statistic")
-	pflag.Duration("scrape-interval", 10*time.Second, "fpm statuses update interval")
+	pflag.Duration("scrape-interval", time.Second, "fpm statuses update interval")
 
 	pflag.String("listen", ":8080", "prometheus statistic addr")
 	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
@@ -105,7 +104,7 @@ func main() {
 		errCh <- http.ListenAndServe(viper.GetString("listen"), nil)
 	}()
 
-	if viper.GetBool("scrape") {
+	if viper.GetDuration("scrape-interval") > 0 {
 		phpfpm.RegisterPrometheus(viper.GetString("fpm-config"), viper.GetDuration("scrape-interval"))
 	}
 
