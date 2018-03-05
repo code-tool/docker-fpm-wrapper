@@ -33,7 +33,7 @@ func ReadLine(r *bufio.Reader) ([]byte, error) {
 			skip = true
 		case io.EOF:
 			// TODO badly-formed line
-			return nil, nil
+			return nil, io.EOF
 		default:
 			return nil, err
 		}

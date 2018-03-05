@@ -22,11 +22,11 @@ const (
 
 const (
 	testData1 = "en taro adun en taro tassadar en taro zeratul"
-	testData2 = "power overwhelming"
+	testData2 = "power overwhelming\n"
 )
 
 func main() {
-	testFPMExecute()
+	//testFPMExecute()
 	testWrapperSocket()
 }
 
