@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -16,46 +15,22 @@ type DataListener struct {
 	listener   net.Listener
 	rPool      *util.ReaderPool
 
-	dataChan  chan []byte
+	writer    io.Writer
 	errorChan chan error
 }
 
-func NewDataListener(socketPath string, rPool *util.ReaderPool, dataChan chan []byte, errorChan chan error) *DataListener {
-	return &DataListener{socketPath: socketPath, rPool: rPool, dataChan: dataChan, errorChan: errorChan}
-}
-
-func readLine(r *bufio.Reader) ([]byte, error) {
-	skip := false
-
-	for {
-		line, isPrefix, err := r.ReadLine()
-		if err != nil {
-			return nil, err
-		}
-
-		if !isPrefix {
-			if skip {
-				return nil, nil
-			}
-
-			return line, nil
-		}
-
-		if isPrefix {
-			// warning! Line is too long
-			skip = true
-		}
-	}
+func NewDataListener(socketPath string, rPool *util.ReaderPool, writer io.Writer, errorChan chan error) *DataListener {
+	return &DataListener{socketPath: socketPath, rPool: rPool, writer: writer, errorChan: errorChan}
 }
 
 func (l *DataListener) handleConnection(conn net.Conn) {
 	reader := l.rPool.Get(conn)
 
 	for {
-		line, err := readLine(reader)
+		line, err := util.ReadLine(reader)
 
 		if line != nil && len(line) > 0 {
-			l.dataChan <- line
+			l.writer.Write(line)
 		}
 
 		if err != nil {

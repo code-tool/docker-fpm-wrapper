@@ -23,12 +23,10 @@ func init() {
 
 	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to socket")
 
-	pflag.Duration("scrape-interval", time.Second, "fpm statuses update interval")
-
 	pflag.String("listen", ":8080", "prometheus statistic addr")
 	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
+	pflag.Duration("scrape-interval", time.Second, "fpm metrics scrape interval")
 
-	pflag.Uint("max-queue-size", 100, "Max pending logs size before trotling")
 	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
 
 	pflag.Parse()
@@ -60,12 +58,12 @@ func main() {
 
 	var err error
 	errCh := make(chan error, 1)
-	dataChan := make(chan []byte, viper.GetInt("max-queue-size"))
+	stderr := util.NewSyncWriter(os.Stderr)
 
 	dataListener := NewDataListener(
 		viper.GetString("wrapper-socket"),
 		util.NewReaderPool(viper.GetInt("line-buffer-size")),
-		dataChan,
+		stderr,
 		errCh)
 
 	if err = dataListener.Start(); err != nil {
@@ -80,7 +78,7 @@ func main() {
 
 	cmd := exec.Command(viper.GetString("fpm"))
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = stderr
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", viper.GetString("wrapper-socket")))
 	cmd.Args = append(cmd.Args, "--nodaemonize")
@@ -110,9 +108,6 @@ func main() {
 
 	for {
 		select {
-		case data := <-dataChan:
-			os.Stderr.Write(data)
-			os.Stderr.Write([]byte{'\n'})
 		case err := <-errCh:
 			if err != nil {
 				panic(err)
