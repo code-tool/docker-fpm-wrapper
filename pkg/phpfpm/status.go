@@ -44,13 +44,13 @@ func GetStats(listen, statusPath string) (*Status, error) {
 		"SCRIPT_NAME":     statusPath,
 	}
 	resp, err := fcgi.Get(env)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		return nil, err
 	}
 	defer tryClose(resp.Body)
 
 	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		return nil, err
 	}
 	s := Status{}
