@@ -30,9 +30,9 @@ func NewProcess(
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", wrapperSocket))
 
+	cmd.Args = append(cmd.Args, extraArgs...)
 	cmd.Args = append(cmd.Args, "--nodaemonize")
 	cmd.Args = append(cmd.Args, "--fpm-config", fpmConfigPath)
-	cmd.Args = append(cmd.Args, extraArgs...)
 
 	return &Process{cmd: cmd, shutdownDelay: shutdownDelay}
 }
