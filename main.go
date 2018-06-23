@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -28,6 +27,7 @@ func init() {
 	pflag.Duration("scrape-interval", time.Second, "fpm metrics scrape interval")
 
 	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
+	pflag.Duration("shutdown-delay", 500*time.Millisecond, "Delay before process shutdown")
 
 	pflag.Parse()
 
@@ -73,28 +73,28 @@ func main() {
 	defer dataListener.Stop()
 
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt)
-	signal.Notify(signalCh, os.Kill)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
 
-	cmd := exec.Command(viper.GetString("fpm"))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = stderr
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", viper.GetString("wrapper-socket")))
-	cmd.Args = append(cmd.Args, "--nodaemonize")
-	cmd.Args = append(cmd.Args, "--fpm-config", viper.GetString("fpm-config"))
-	cmd.Args = append(cmd.Args, findFpmArgs()...)
+	fpmProcess := phpfpm.NewProcess(
+		viper.GetString("fpm"),
+		viper.GetString("fpm-config"),
+		os.Stdout,
+		stderr,
+		viper.GetString("wrapper-socket"),
+		viper.GetDuration("shutdown-delay"),
+		findFpmArgs()...
+	)
 
-	if err = cmd.Start(); err != nil {
+	if err = fpmProcess.Start(); err != nil {
 		fmt.Printf("exec.Command: %v", err)
 		os.Exit(1)
 	}
 
-	go handleSignals(cmd, signalCh)
-	procErrCh := make(chan error, 1)
+	go fpmProcess.HandleSignal(signalCh)
 
+	fpmExitCodeCh := make(chan int, 1)
 	go func() {
-		procErrCh <- cmd.Wait()
+		fpmExitCodeCh <- fpmProcess.Wait(errCh)
 	}()
 
 	http.Handle(viper.GetString("metrics-path"), promhttp.Handler())
@@ -112,27 +112,8 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-		case err := <-procErrCh:
-			if err == nil {
-				os.Exit(0)
-			}
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-					os.Exit(status.ExitStatus())
-				}
-			} else {
-				panic(err)
-			}
-		}
-	}
-}
-
-func handleSignals(cmd *exec.Cmd, signalCh chan os.Signal) {
-	for {
-		err := cmd.Process.Signal(<-signalCh)
-		if err != nil {
-			fmt.Printf("cmd.Process.Signal: %v", err)
-			os.Exit(1)
+		case exitCode := <-fpmExitCodeCh:
+			os.Exit(exitCode)
 		}
 	}
 }
