@@ -1,4 +1,4 @@
-package fpmConfig
+package phpfpm
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ type Pool struct {
 	StatusPath string
 }
 
-func Parse(fpmConfigPath string) (Config, error) {
+func ParseConfig(fpmConfigPath string) (Config, error) {
 	c := Config{}
 	cfg := ini.Empty()
 	err := cfg.Append(fpmConfigPath)

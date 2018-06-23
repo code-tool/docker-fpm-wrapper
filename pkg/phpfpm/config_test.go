@@ -1,4 +1,4 @@
-package fpmConfig
+package phpfpm
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	c, err := Parse("testData/php-fpm.conf")
+	c, err := ParseConfig("testData/php-fpm.conf")
 	assert.Nil(t, err)
 	assert.Equal(t, "testData/php-fpm.d/*.conf", c.Include)
 

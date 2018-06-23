@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/code-tool/docker-fpm-wrapper/fpmConfig"
 )
 
 const namespace = "phpfpm"
@@ -16,11 +14,11 @@ const namespace = "phpfpm"
 type stat struct {
 	mu       *sync.Mutex
 	statuses []Status
-	pools    []fpmConfig.Pool
+	pools    []Pool
 }
 
 func RegisterPrometheus(fpmConfigPath string, update time.Duration) error {
-	cfg, err := fpmConfig.Parse(fpmConfigPath)
+	cfg, err := ParseConfig(fpmConfigPath)
 	if err != nil {
 		return err
 	}
@@ -99,7 +97,7 @@ type FPMPoolStatus struct {
 	slowRequests       *prometheus.GaugeVec
 }
 
-func NewFPMPoolStatus(pools []fpmConfig.Pool) *FPMPoolStatus {
+func NewFPMPoolStatus(pools []Pool) *FPMPoolStatus {
 	poolLabelNames := []string{"pool_name"}
 
 	return &FPMPoolStatus{
