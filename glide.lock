@@ -1,5 +1,5 @@
-hash: 7baccc93a74411638de59867312cc9895db50c5ed394ac590d3144032c6b6d03
-updated: 2018-06-23T20:13:09.991955279+03:00
+hash: 25e19e93be30cab3a9ae29662f38b7d7070c0e92f565a4ba7a119a443fc91c90
+updated: 2018-06-23T23:33:50.065387808+03:00
 imports:
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
@@ -17,6 +17,8 @@ imports:
   - pbutil
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
+- name: github.com/otiai10/copy
+  version: c59d460454b7a0c318e59595cb3ea22a41ba2572
 - name: github.com/pelletier/go-buffruneio
   version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml

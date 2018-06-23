@@ -13,3 +13,4 @@ import:
   version: ^0.8.0
   subpackages:
   - prometheus
+- package: github.com/otiai10/copy
