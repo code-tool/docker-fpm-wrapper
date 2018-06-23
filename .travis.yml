@@ -3,28 +3,21 @@ language: go
 sudo: required
 
 go:
-- 1.9
+- 1.10
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y php5-fpm
 
 install:
-  - wget -O glide.tar.gz "https://github.com/Masterminds/glide/releases/download/v0.13.0/glide-v0.13.0-linux-amd64.tar.gz"
+  - wget -O glide.tar.gz "https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.tar.gz"
   - mkdir -p $HOME/bin
   - tar -vxz -C $HOME/bin --strip=1 -f glide.tar.gz
   - export PATH="$HOME/bin:$PATH"
   - glide i
   - go build
-  - cp fpmTest/test.php /tmp/
-  - sudo /etc/init.d/php5-fpm stop
-  - sudo ./docker-fpm-wrapper --fpm /usr/sbin/php5-fpm --fpm-config /etc/php5/fpm/php-fpm.conf 2> /tmp/stderr &
 
 script:
   - go test $(glide novendor)
-  - go build -o fpmTest/fpmTest fpmTest/main.go
-  - sudo ./fpmTest/fpmTest
-  - cat /tmp/stderr
 
 deploy:
   provider: releases
