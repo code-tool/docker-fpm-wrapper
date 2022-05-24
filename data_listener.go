@@ -43,7 +43,7 @@ func (l *DataListener) handleConnection(conn net.Conn) {
 	}
 
 	l.rPool.Put(reader)
-	conn.Close()
+	_ = conn.Close()
 }
 
 func (l *DataListener) initSocket() error {
@@ -54,7 +54,7 @@ func (l *DataListener) initSocket() error {
 		// socket exists
 		c, err = net.Dial("unix", l.socketPath)
 		if err == nil {
-			c.Close()
+			_ = c.Close()
 			// socket exists and listening
 			return errors.New(fmt.Sprintf("Socket %s already exists and listening", l.socketPath))
 		}
@@ -96,5 +96,5 @@ func (l *DataListener) Start() error {
 }
 
 func (l *DataListener) Stop() {
-	l.listener.Close()
+	_ = l.listener.Close()
 }
