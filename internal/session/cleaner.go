@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/procfs"
 )
 
@@ -53,7 +54,6 @@ exit 0
 */
 
 type Cleaner struct {
-	cmd *exec.Cmd
 }
 
 func NewCleaner() *Cleaner {
@@ -159,34 +159,48 @@ func (c *Cleaner) removeSessionFiles(savePath string, cutoff time.Duration) erro
 	return nil
 }
 
+func (c *Cleaner) cleanupForPhpAnsSapi(phpVersion string, sapi sapiInfo) error {
+	if !c.isPhpCliExists(phpVersion, sapi) {
+		return nil
+	}
+
+	sessConfig, err := NewConfig(phpVersion, sapi.ConfDir)
+	if err != nil {
+		return err
+	}
+
+	if !sessConfig.IfSaveHandlerFilesAndPathNonEmpty() {
+		return nil
+	}
+
+	var result error
+	if err := c.touchOpenFiles(sapi.GetProcName(phpVersion), sessConfig.SavePath); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	if err := c.removeSessionFiles(sessConfig.SavePath, sessConfig.GcMaxLifetime); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	return result
+}
+
 func (c *Cleaner) Cleanup() error {
 	phpVersions, err := c.getPHPVersions()
 	if err != nil {
 		return err
 	}
 
+	var result error
 	for _, phpVersion := range phpVersions {
 		for _, sapi := range sapis {
-			if !c.isPhpCliExists(phpVersion, sapi) {
-				continue
+			if err := c.cleanupForPhpAnsSapi(phpVersion, sapi); err != nil {
+				result = multierror.Append(result, err)
 			}
-
-			sessConfig, err := NewConfig(phpVersion, sapi.ConfDir)
-			if err != nil {
-				continue
-			}
-
-			if !sessConfig.IfSaveHandlerFilesAndPathNonEmpty() {
-				continue
-			}
-
-			c.touchOpenFiles(sapi.GetProcName(phpVersion), sessConfig.SavePath)
-
-			c.removeSessionFiles(sessConfig.SavePath, sessConfig.GcMaxLifetime)
 		}
 	}
 
-	return nil
+	return result
 }
 
 func (c *Cleaner) CleanupInfinity(ctx context.Context) {
