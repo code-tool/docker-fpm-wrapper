@@ -12,8 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 
-	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
+	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
 
 func init() {
@@ -31,7 +31,7 @@ func init() {
 
 	pflag.Parse()
 
-	viper.BindPFlags(pflag.CommandLine)
+	_ = viper.BindPFlags(pflag.CommandLine)
 }
 
 func findFpmArgs() []string {
@@ -82,7 +82,7 @@ func main() {
 		stderr,
 		viper.GetString("wrapper-socket"),
 		viper.GetDuration("shutdown-delay"),
-		findFpmArgs()...
+		findFpmArgs()...,
 	)
 
 	if err = fpmProcess.Start(); err != nil {
