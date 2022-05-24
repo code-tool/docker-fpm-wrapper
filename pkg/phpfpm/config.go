@@ -16,9 +16,10 @@ type Config struct {
 }
 
 type Pool struct {
-	Name       string
-	Listen     string
-	StatusPath string
+	Name        string
+	Listen      string
+	StatusPath  string
+	SlowlogPath string
 }
 
 func ParseConfig(fpmConfigPath string) (Config, error) {
@@ -93,6 +94,11 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 	key, err = section.GetKey("pm.status_path")
 	if err == nil {
 		pool.StatusPath = key.String()
+	}
+
+	key, err = section.GetKey("slowlog")
+	if err == nil {
+		pool.SlowlogPath = strings.Replace(key.String(), "$pool", poolName, 1)
 	}
 
 	config.Pools = append(config.Pools, pool)
