@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/ini.v1"
@@ -16,10 +17,11 @@ type Config struct {
 }
 
 type Pool struct {
-	Name        string
-	Listen      string
-	StatusPath  string
-	SlowlogPath string
+	Name                  string
+	Listen                string
+	StatusPath            string
+	SlowlogPath           string
+	RequestSlowlogTimeout int
 }
 
 func ParseConfig(fpmConfigPath string) (Config, error) {
@@ -99,6 +101,11 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 	key, err = section.GetKey("slowlog")
 	if err == nil {
 		pool.SlowlogPath = strings.Replace(key.String(), "$pool", poolName, 1)
+	}
+
+	key, err = section.GetKey("request_slowlog_timeout")
+	if err == nil {
+		pool.RequestSlowlogTimeout, _ = strconv.Atoi(key.String())
 	}
 
 	config.Pools = append(config.Pools, pool)
