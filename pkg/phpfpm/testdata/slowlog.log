@@ -1,0 +1,47 @@
+
+[24-May-2022 09:37:47]  [pool gclone2] pid 4219
+script_filename = /var/www/gclone2-ci/current/web/index.php
+[0x00007f177cf8ddb8] execute() /var/www/gclone2-ci/releases/5194/vendor/goldenclone/symfony1/lib/plugins/sfPropelPlugin/lib/vendor/propel/util/BasePeer.php:295
+[0x00007f177cf8dc48] doInsert() /var/www/gclone2-ci/releases/5194/lib/model/om/BaseGcUserItemPeer.php:716
+[0x00007f177cf8db08] doInsert() /var/www/gclone2-ci/releases/5194/lib/model/om/BaseGcUserItem.php:468
+[0x00007f177cf8d9b0] doSave() /var/www/gclone2-ci/releases/5194/lib/model/om/BaseGcUserItem.php:416
+[0x00007f177cf8d828] save() /var/www/gclone2-ci/releases/5194/lib/storage/Storage.class.php:708
+[0x00007f177cf8d660] putItemToStorageByModel() /var/www/gclone2-ci/releases/5194/lib/storage/Storage.class.php:813
+[0x00007f177cf8d4c8] putAllItemToStorageByTypes() /var/www/gclone2-ci/releases/5194/apps/frontend/modules/storage/actions/actions.class.php:224
+[0x00007f177cf8d360] executePutAllToStorage() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:11
+[0x00007f177cf8d208] execute() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:84
+[0x00007f177cf8d0d0] execute() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:23
+[0x00007f177cf8cfa8] executeAction() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:23
+[0x00007f177cf8ce48] handleAction() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:23
+[0x00007f177cf8cd00] execute() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8cbc0] execute() /var/www/gclone2-ci/releases/5194/vendor/goldenclone/symfony1/lib/filter/sfCacheFilter.class.php:65
+[0x00007f177cf8ca98] execute() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8c8c8] execute() /var/www/gclone2-ci/releases/5194/plugins/gcModuleAssetsPlugin/lib/filter/gcModulesAssetsFilter.class.php:72
+[0x00007f177cf8c740] execute() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8c5a0] execute() /var/www/gclone2-ci/releases/5194/plugins/gcI18nPlugin/lib/filter/gcI18nTagFilter.class.php:13
+[0x00007f177cf8c438] execute() /var/www/gclone2-ci/releases/5194/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8c2f8] execute() /var/www/gclone2-ci/releases/5194/lib/filter/requestFilter.class.php:62
+
+[24-May-2022 09:37:47]  [pool gclone2] pid 4236
+script_filename = /var/www/gclone2-nl-ci/current/web/index.php
+[0x00007f177cf8e188] execute() /var/www/gclone2-nl-ci/releases/788/vendor/goldenclone/symfony1/lib/plugins/sfPropelPlugin/lib/vendor/propel/util/BasePeer.php:161
+[0x00007f177cf8dfc8] doDelete() /var/www/gclone2-nl-ci/releases/788/lib/model/om/BaseGcCloneItemPeer.php:841
+[0x00007f177cf8de18] doDelete() /var/www/gclone2-nl-ci/releases/788/lib/storage/Storage.class.php:705
+[0x00007f177cf8dc50] putItemToStorageByModel() /var/www/gclone2-nl-ci/releases/788/lib/storage/Storage.class.php:813
+[0x00007f177cf8dab8] putAllItemToStorageByTypes() /var/www/gclone2-nl-ci/releases/788/apps/frontend/modules/storage/actions/actions.class.php:224
+[0x00007f177cf8d4b0] executePutAllToStorage() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:11
+[0x00007f177cf8d358] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:84
+[0x00007f177cf8d220] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:23
+[0x00007f177cf8d0f8] executeAction() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:23
+[0x00007f177cf8cf98] handleAction() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:23
+[0x00007f177cf8ce50] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8cd10] execute() /var/www/gclone2-nl-ci/releases/788/vendor/goldenclone/symfony1/lib/filter/sfCacheFilter.class.php:65
+[0x00007f177cf8cbe8] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8ca18] execute() /var/www/gclone2-nl-ci/releases/788/plugins/gcModuleAssetsPlugin/lib/filter/gcModulesAssetsFilter.class.php:72
+[0x00007f177cf8c890] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8c6f0] execute() /var/www/gclone2-nl-ci/releases/788/plugins/gcI18nPlugin/lib/filter/gcI18nTagFilter.class.php:13
+[0x00007f177cf8c588] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8c448] execute() /var/www/gclone2-nl-ci/releases/788/lib/filter/requestFilter.class.php:62
+[0x00007f177cf8c320] execute() /var/www/gclone2-nl-ci/releases/788/cache/frontend/prod/config/config_core_compile.yml.php:27
+[0x00007f177cf8c190] execute() /var/www/gclone2-nl-ci/releases/788/lib/filter/OneTimePasswordCheckFilter.class.php:28
+
