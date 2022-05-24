@@ -51,6 +51,7 @@ func (s *stat) UpdateStatuses() error {
 	statusCh := make(chan Status, 1)
 	errCh := make(chan error, 1)
 	for _, pool := range s.pools {
+		pool := pool
 		go func() {
 			status, err := GetStats(pool.Listen, pool.StatusPath)
 			if err != nil {
