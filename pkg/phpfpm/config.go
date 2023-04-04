@@ -2,7 +2,7 @@ package phpfpm
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -22,60 +22,6 @@ type Pool struct {
 	StatusPath            string
 	SlowlogPath           string
 	RequestSlowlogTimeout int
-}
-
-func ParseConfig(fpmConfigPath string) (Config, error) {
-	c := Config{}
-	cfg := ini.Empty()
-	err := cfg.Append(fpmConfigPath)
-	if err != nil {
-		return c, err
-	}
-
-	global, err := cfg.GetSection("global")
-	if err != nil {
-		return c, err
-	}
-
-	include, err := global.GetKey("include")
-	if err != nil {
-		return c, err
-	}
-
-	c.Include = include.Value()
-
-	file := regexp.QuoteMeta(path.Base(c.Include))
-	file = strings.Replace(file, regexp.QuoteMeta("*"), "(.+)", 1)
-	file = fmt.Sprintf("^%s$", file)
-	fileRx := regexp.MustCompile(file)
-
-	fmpPoolsDir := path.Dir(c.Include)
-	osFileInfo, err := ioutil.ReadDir(fmpPoolsDir)
-	if err != nil {
-		return c, err
-	}
-
-	for _, info := range osFileInfo {
-		if info.IsDir() || !fileRx.MatchString(info.Name()) {
-			continue
-		}
-
-		err = cfg.Append(fmt.Sprintf("%s/%s", fmpPoolsDir, info.Name()))
-		if err != nil {
-			return c, err
-		}
-	}
-
-	for _, section := range cfg.Sections() {
-		_, err = section.GetKey("pm.status_path")
-		if err != nil {
-			continue
-		}
-
-		fillPull(&c, cfg, section.Name())
-	}
-
-	return c, err
 }
 
 func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
@@ -110,4 +56,60 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 
 	config.Pools = append(config.Pools, pool)
 	return nil
+}
+
+func ParseConfig(fpmConfigPath string) (Config, error) {
+	c := Config{}
+	cfg := ini.Empty()
+	err := cfg.Append(fpmConfigPath)
+	if err != nil {
+		return c, err
+	}
+
+	global, err := cfg.GetSection("global")
+	if err != nil {
+		return c, err
+	}
+
+	include, err := global.GetKey("include")
+	if err != nil {
+		return c, err
+	}
+
+	c.Include = include.Value()
+
+	file := regexp.QuoteMeta(path.Base(c.Include))
+	file = strings.Replace(file, regexp.QuoteMeta("*"), "(.+)", 1)
+	file = fmt.Sprintf("^%s$", file)
+	fileRx := regexp.MustCompile(file)
+
+	fmpPoolsDir := path.Dir(c.Include)
+	osFileInfo, err := os.ReadDir(fmpPoolsDir)
+	if err != nil {
+		return c, err
+	}
+
+	for _, info := range osFileInfo {
+		if info.IsDir() || !fileRx.MatchString(info.Name()) {
+			continue
+		}
+
+		err = cfg.Append(fmt.Sprintf("%s/%s", fmpPoolsDir, info.Name()))
+		if err != nil {
+			return c, err
+		}
+	}
+
+	for _, section := range cfg.Sections() {
+		_, err = section.GetKey("pm.status_path")
+		if err != nil {
+			continue
+		}
+
+		if err := fillPull(&c, cfg, section.Name()); err != nil {
+			return c, err
+		}
+	}
+
+	return c, err
 }
