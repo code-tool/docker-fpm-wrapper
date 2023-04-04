@@ -19,15 +19,17 @@ import (
 
 func init() {
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
-	pflag.StringP("fpm-config", "y", "/etc/php/php-fpm.conf", "path to php-fpm config file")
+	pflag.StringP("fpm-config", "c", "/etc/php/php-fpm.conf", "path to php-fpm config file")
 
-	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to socket")
+	// Logging proxy section
+	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to logging socket, set null to disable")
+	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
 
+	// Prom section
 	pflag.String("listen", ":8080", "prometheus statistic addr")
 	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
 	pflag.Duration("scrape-interval", time.Second, "fpm metrics scrape interval")
 
-	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
 	pflag.Duration("shutdown-delay", 500*time.Millisecond, "Delay before process shutdown")
 
 	pflag.Parse()
@@ -61,17 +63,20 @@ func main() {
 	errCh := make(chan error, 1)
 	stderr := util.NewSyncWriter(os.Stderr)
 
-	dataListener := applog.NewDataListener(
-		viper.GetString("wrapper-socket"),
-		util.NewReaderPool(viper.GetInt("line-buffer-size")),
-		stderr,
-		errCh)
+	if wrapperSocketPath := viper.GetString("wrapper-socket"); wrapperSocketPath != "null" {
+		dataListener := applog.NewDataListener(
+			wrapperSocketPath,
+			util.NewReaderPool(viper.GetInt("line-buffer-size")),
+			stderr,
+			errCh)
 
-	if err = dataListener.Start(); err != nil {
-		fmt.Printf("Can't start listen: %v", err)
-		os.Exit(1)
+		if err = dataListener.Start(); err != nil {
+			fmt.Printf("Can't start listen: %v", err)
+			os.Exit(1)
+		}
+
+		defer dataListener.Stop()
 	}
-	defer dataListener.Stop()
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
