@@ -16,15 +16,12 @@ type stat struct {
 	pools    []Pool
 }
 
-func RegisterPrometheus(fpmConfigPath string, update time.Duration) error {
-	cfg, err := ParseConfig(fpmConfigPath)
-	if err != nil {
-		return err
-	}
-	fpmStatus := NewFPMPoolStatus(cfg.Pools)
+func RegisterPrometheus(fpmConfig Config, update time.Duration) error {
+	fpmStatus := NewFPMPoolStatus(fpmConfig.Pools)
 	prometheus.MustRegister(fpmStatus)
 
 	go startUpdateStatuses(fpmStatus, update)
+
 	return nil
 }
 

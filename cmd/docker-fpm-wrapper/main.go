@@ -60,6 +60,12 @@ func main() {
 		defer dataListener.Stop()
 	}
 
+	fpmConfig, err := phpfpm.ParseConfig(cfg.FpmConfigPath)
+	if err != nil {
+		fmt.Printf("Can't parse fpm config: %v", err)
+		os.Exit(1)
+	}
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
 
@@ -88,7 +94,7 @@ func main() {
 	}()
 
 	if cfg.ScrapeInterval > 0 {
-		err = phpfpm.RegisterPrometheus(cfg.FpmConfigPath, cfg.ScrapeInterval)
+		err = phpfpm.RegisterPrometheus(fpmConfig, cfg.ScrapeInterval)
 		if err != nil {
 			fmt.Printf("Can't init prometheus collectior: %v", err)
 			os.Exit(1)
