@@ -109,7 +109,11 @@ func main() {
 	}()
 
 	if viper.GetDuration("scrape-interval") > 0 {
-		phpfpm.RegisterPrometheus(viper.GetString("fpm-config"), viper.GetDuration("scrape-interval"))
+		err = phpfpm.RegisterPrometheus(viper.GetString("fpm-config"), viper.GetDuration("scrape-interval"))
+		if err != nil {
+			fmt.Printf("Can't init prometheus collectior: %v", err)
+			os.Exit(1)
+		}
 	}
 
 	for {
