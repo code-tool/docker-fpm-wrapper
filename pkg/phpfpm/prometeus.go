@@ -1,11 +1,10 @@
 package phpfpm
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -41,15 +40,18 @@ func startUpdateStatuses(fpmStatus *FPMPoolStatus, update time.Duration) {
 
 func (s *stat) GetStatuses() []Status {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	statuses := make([]Status, len(s.statuses))
 	copy(statuses, s.statuses)
-	s.mu.Unlock()
+
 	return statuses
 }
 
 func (s *stat) UpdateStatuses() error {
-	statusCh := make(chan Status, 1)
 	errCh := make(chan error, 1)
+	statusCh := make(chan Status, 1)
+
 	for _, pool := range s.pools {
 		pool := pool
 		go func() {
@@ -62,23 +64,19 @@ func (s *stat) UpdateStatuses() error {
 		}()
 	}
 
-	errors := []string{}
+	var result error
 
 	s.mu.Lock()
 	for i := range s.statuses {
 		select {
 		case err := <-errCh:
-			errors = append(errors, err.Error())
+			result = multierror.Append(result, err)
 		case s.statuses[i] = <-statusCh:
 		}
 	}
 	s.mu.Unlock()
 
-	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "\n"))
-	}
-
-	return nil
+	return result
 }
 
 type FPMPoolStatus struct {
