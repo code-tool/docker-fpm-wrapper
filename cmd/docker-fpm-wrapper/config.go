@@ -10,8 +10,8 @@ import (
 )
 
 type Config struct {
-	Fpm       string `mapstructure:"fpm"`
-	FpmConfig string `mapstructure:"fpm-config"`
+	FpmPath       string `mapstructure:"fpm"`
+	FpmConfigPath string `mapstructure:"fpm-config"`
 
 	// Logging proxy section
 	WrapperSocket  string `mapstructure:"wrapper-socket"`

@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.Fpm == "" {
+	if cfg.FpmPath == "" {
 		fmt.Println("php-fpm path not set")
 		os.Exit(1)
 	}
@@ -45,7 +45,11 @@ func main() {
 	errCh := make(chan error, 1)
 	stderr := util.NewSyncWriter(os.Stderr)
 
+	env := os.Environ()
+
 	if cfg.WrapperSocket != "null" {
+		env = append(env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", cfg.WrapperSocket))
+
 		dataListener := applog.NewDataListener(cfg.WrapperSocket, util.NewReaderPool(cfg.LineBufferSize), stderr, errCh)
 
 		if err = dataListener.Start(); err != nil {
@@ -60,11 +64,10 @@ func main() {
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
 
 	fpmProcess := phpfpm.NewProcess(
-		cfg.Fpm, cfg.FpmConfig,
+		cfg.FpmPath, cfg.FpmConfigPath,
 		os.Stdout, stderr,
-		cfg.WrapperSocket,
 		cfg.ShutdownDelay,
-		findFpmArgs()...,
+		env, findFpmArgs()...,
 	)
 
 	if err = fpmProcess.Start(); err != nil {
@@ -85,7 +88,7 @@ func main() {
 	}()
 
 	if cfg.ScrapeInterval > 0 {
-		err = phpfpm.RegisterPrometheus(cfg.FpmConfig, cfg.ScrapeInterval)
+		err = phpfpm.RegisterPrometheus(cfg.FpmConfigPath, cfg.ScrapeInterval)
 		if err != nil {
 			fmt.Printf("Can't init prometheus collectior: %v", err)
 			os.Exit(1)

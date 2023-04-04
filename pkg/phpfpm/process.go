@@ -1,12 +1,11 @@
 package phpfpm
 
 import (
+	"io"
 	"os"
-	"fmt"
 	"os/exec"
 	"syscall"
 	"time"
-	"io"
 )
 
 type Process struct {
@@ -15,20 +14,16 @@ type Process struct {
 }
 
 func NewProcess(
-	fpmPath string,
-	fpmConfigPath string,
-	stdout io.Writer,
-	stderr io.Writer,
-	wrapperSocket string,
+	fpmPath string, fpmConfigPath string,
+	stdout io.Writer, stderr io.Writer,
 	shutdownDelay time.Duration,
-	extraArgs ...string,
+	env []string, extraArgs ...string,
 ) *Process {
 	cmd := exec.Command(fpmPath)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", wrapperSocket))
+	cmd.Env = env
 
 	cmd.Args = append(cmd.Args, extraArgs...)
 	cmd.Args = append(cmd.Args, "--nodaemonize")
