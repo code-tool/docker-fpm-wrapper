@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/FZambia/viper-lite v0.0.0-20220110144934-1899f66c7d0e
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/joho/godotenv v1.5.1
 	github.com/otiai10/copy v1.7.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/procfs v0.9.0
