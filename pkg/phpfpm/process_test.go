@@ -1,8 +1,8 @@
 package phpfpm
 
 import (
-	"testing"
 	"bytes"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -11,7 +11,7 @@ func TestNewProcess(t *testing.T) {
 	stdout := bytes.NewBufferString("")
 	stderr := bytes.NewBufferString("")
 
-	p := NewProcess("echo", "configpath", stdout, stderr, "/tmp/sock", 0, "-n")
+	p := NewProcess("echo", "configpath", stdout, stderr, 0, []string{}, "-n")
 	assert.NoError(t, p.Start())
 
 	errCh := make(chan error, 1)
