@@ -1,4 +1,4 @@
-package main
+package applog
 
 import (
 	"errors"
@@ -30,7 +30,7 @@ func (l *DataListener) handleConnection(conn net.Conn) {
 		line, err := util.ReadLine(reader)
 
 		if line != nil && len(line) > 0 {
-			l.writer.Write(line)
+			_, _ = l.writer.Write(line)
 		}
 
 		if err != nil {

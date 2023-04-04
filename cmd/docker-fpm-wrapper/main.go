@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 
+	"github.com/code-tool/docker-fpm-wrapper/internal/applog"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
@@ -60,7 +61,7 @@ func main() {
 	errCh := make(chan error, 1)
 	stderr := util.NewSyncWriter(os.Stderr)
 
-	dataListener := NewDataListener(
+	dataListener := applog.NewDataListener(
 		viper.GetString("wrapper-socket"),
 		util.NewReaderPool(viper.GetInt("line-buffer-size")),
 		stderr,
