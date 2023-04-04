@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -33,7 +34,7 @@ func findFpmArgs() []string {
 func main() {
 	cfg, err := createConfig()
 	if err != nil {
-		fmt.Println("Can't create app config: %w", err)
+		fmt.Printf("Can't create app config: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -62,12 +63,17 @@ func main() {
 
 	fpmConfig, err := phpfpm.ParseConfig(cfg.FpmConfigPath)
 	if err != nil {
-		fmt.Printf("Can't parse fpm config: %v", err)
+		fmt.Printf("Can't parse fpm config: %v\n", err)
 		os.Exit(1)
 	}
 
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
+	if !cfg.FpmSlowlogProxyDisabled {
+		err = startSlowlogProxies(context.TODO(), fpmConfig, stderr)
+		if err != nil {
+			fmt.Printf("Can't start slowlog proxies: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	fpmProcess := phpfpm.NewProcess(
 		cfg.FpmPath, cfg.FpmConfigPath,
@@ -81,6 +87,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
 	go fpmProcess.HandleSignal(signalCh)
 
 	fpmExitCodeCh := make(chan int, 1)
