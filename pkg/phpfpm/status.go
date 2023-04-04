@@ -1,12 +1,12 @@
 package phpfpm
 
 import (
-	"github.com/tomasen/fcgi_client"
-	"time"
-	"io"
-	"io/ioutil"
 	"encoding/json"
+	"io"
 	"strings"
+	"time"
+
+	"github.com/tomasen/fcgi_client"
 )
 
 type Status struct {
@@ -49,7 +49,7 @@ func GetStats(listen, statusPath string) (*Status, error) {
 	}
 	defer tryClose(resp.Body)
 
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -66,5 +66,6 @@ func tryClose(closer io.ReadCloser) {
 	if closer == nil {
 		return
 	}
-	closer.Close()
+
+	_ = closer.Close()
 }
