@@ -133,10 +133,11 @@ func (slp *SlowlogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEn
 
 		switch state {
 		case stateParseHeader:
-			if err := slp.parseHeader(line, &entry); err == nil {
+			if err := slp.parseHeader(line, &entry); err != nil {
 				entry.Reset()
-				state = stateParseFilename
+				continue
 			}
+			state = stateParseFilename
 		case stateParseFilename:
 			if err := slp.parseFilename(line, &entry); err != nil {
 				entry.Reset()
