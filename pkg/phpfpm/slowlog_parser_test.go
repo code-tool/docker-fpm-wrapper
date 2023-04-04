@@ -16,7 +16,7 @@ func TestSlowlogParser(t *testing.T) {
 		return
 	}
 
-	slp := &SloglogParser{}
+	slp := &SlowlogParser{}
 	out := make(chan SlowlogEntry)
 
 	pipeReader, pipeWriter := io.Pipe()

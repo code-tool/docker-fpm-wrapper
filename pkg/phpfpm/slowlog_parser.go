@@ -44,10 +44,10 @@ func (se *SlowlogEntry) Reset() {
 	se.Stacktrace = se.Stacktrace[:0]
 }
 
-type SloglogParser struct {
+type SlowlogParser struct {
 }
 
-func (slp *SloglogParser) parseHeader(line []byte, entry *SlowlogEntry) error {
+func (slp *SlowlogParser) parseHeader(line []byte, entry *SlowlogEntry) error {
 	var err error
 	matches := headerRegexp.FindSubmatchIndex(line)
 	if len(matches) == 0 {
@@ -68,7 +68,7 @@ func (slp *SloglogParser) parseHeader(line []byte, entry *SlowlogEntry) error {
 	return nil
 }
 
-func (slp *SloglogParser) parseFilename(line []byte, entry *SlowlogEntry) error {
+func (slp *SlowlogParser) parseFilename(line []byte, entry *SlowlogEntry) error {
 	prefix := []byte("script_filename = ")
 	if !bytes.HasPrefix(line, prefix) {
 		return errors.New("not filename line")
@@ -78,7 +78,7 @@ func (slp *SloglogParser) parseFilename(line []byte, entry *SlowlogEntry) error 
 	return nil
 }
 
-func (slp *SloglogParser) parseStacktraceEntry(line []byte, entry *SlowlogEntry) error {
+func (slp *SlowlogParser) parseStacktraceEntry(line []byte, entry *SlowlogEntry) error {
 	matches := stacktraceEntryRegexp.FindSubmatchIndex(line)
 	if len(matches) == 0 {
 		return errors.New("not a stacktrace entry")
@@ -99,7 +99,7 @@ func (slp *SloglogParser) parseStacktraceEntry(line []byte, entry *SlowlogEntry)
 	return nil
 }
 
-func (slp *SloglogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEntry, error) {
+func (slp *SlowlogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEntry, error) {
 	skip := false
 	state := stateParseHeader
 
@@ -152,7 +152,7 @@ func (slp *SloglogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEn
 	}
 }
 
-func (slp *SloglogParser) Parse(r io.Reader, out chan SlowlogEntry) error {
+func (slp *SlowlogParser) Parse(r io.Reader, out chan SlowlogEntry) error {
 	bufioReader := bufio.NewReader(r)
 
 	for {
