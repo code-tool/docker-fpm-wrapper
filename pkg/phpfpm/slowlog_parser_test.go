@@ -1,11 +1,14 @@
 package phpfpm
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSlowlogParser(t *testing.T) {
@@ -15,8 +18,9 @@ func TestSlowlogParser(t *testing.T) {
 		t.Fail()
 		return
 	}
+	defer f.Close()
 
-	slp := &SlowlogParser{}
+	slp := NewSlowlogParser()
 	out := make(chan SlowlogEntry)
 
 	pipeReader, pipeWriter := io.Pipe()
@@ -43,7 +47,7 @@ func TestSlowlogParser(t *testing.T) {
 	for {
 		n, err := f.Read(buf)
 		if err != nil {
-			pipeWriter.CloseWithError(err)
+			assert.NoError(t, pipeWriter.CloseWithError(err))
 			break
 		}
 
@@ -56,7 +60,15 @@ func TestSlowlogParser(t *testing.T) {
 	//
 
 	wg.Wait()
-	if len(entries) != 2 {
-		t.Fail()
+	if !assert.Equal(t, 2, len(entries)) {
+		return
 	}
+
+	_, err = f.Seek(0, 0)
+	assert.NoError(t, err)
+
+	allContent, err := io.ReadAll(f)
+	assert.NoError(t, err)
+
+	assert.True(t, bytes.Contains(allContent, []byte(entries[0].String())))
 }
