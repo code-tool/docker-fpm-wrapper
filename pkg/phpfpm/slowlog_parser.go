@@ -47,6 +47,10 @@ func (se *SlowlogEntry) Reset() {
 type SlowlogParser struct {
 }
 
+func NewSlowlogParser() *SlowlogParser {
+	return &SlowlogParser{}
+}
+
 func (slp *SlowlogParser) parseHeader(line []byte, entry *SlowlogEntry) error {
 	var err error
 	matches := headerRegexp.FindSubmatchIndex(line)
