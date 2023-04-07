@@ -71,32 +71,28 @@ func ParseConfig(fpmConfigPath string) (Config, error) {
 		return c, err
 	}
 
-	include, err := global.GetKey("include")
-	if err != nil {
-		return c, err
-	}
+	if include, err := global.GetKey("include"); err == nil {
+		c.Include = include.Value()
 
-	c.Include = include.Value()
+		file := regexp.QuoteMeta(path.Base(c.Include))
+		file = strings.Replace(file, regexp.QuoteMeta("*"), "(.+)", 1)
+		file = fmt.Sprintf("^%s$", file)
+		fileRx := regexp.MustCompile(file)
 
-	file := regexp.QuoteMeta(path.Base(c.Include))
-	file = strings.Replace(file, regexp.QuoteMeta("*"), "(.+)", 1)
-	file = fmt.Sprintf("^%s$", file)
-	fileRx := regexp.MustCompile(file)
-
-	fmpPoolsDir := path.Dir(c.Include)
-	osFileInfo, err := os.ReadDir(fmpPoolsDir)
-	if err != nil {
-		return c, err
-	}
-
-	for _, info := range osFileInfo {
-		if info.IsDir() || !fileRx.MatchString(info.Name()) {
-			continue
-		}
-
-		err = cfg.Append(fmt.Sprintf("%s/%s", fmpPoolsDir, info.Name()))
+		fmpPoolsDir := path.Dir(c.Include)
+		osFileInfo, err := os.ReadDir(fmpPoolsDir)
 		if err != nil {
 			return c, err
+		}
+
+		for _, info := range osFileInfo {
+			if info.IsDir() || !fileRx.MatchString(info.Name()) {
+				continue
+			}
+
+			if err = cfg.Append(fmt.Sprintf("%s/%s", fmpPoolsDir, info.Name())); err != nil {
+				return c, err
+			}
 		}
 	}
 
