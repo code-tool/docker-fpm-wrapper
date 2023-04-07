@@ -17,11 +17,12 @@ type Config struct {
 }
 
 type Pool struct {
-	Name                  string
-	Listen                string
-	StatusPath            string
-	SlowlogPath           string
-	RequestSlowlogTimeout int
+	Name                     string
+	Listen                   string
+	StatusPath               string
+	SlowlogPath              string
+	RequestSlowlogTimeout    int
+	RequestSlowlogTraceDepth int
 }
 
 func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
@@ -52,6 +53,12 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 	key, err = section.GetKey("request_slowlog_timeout")
 	if err == nil {
 		pool.RequestSlowlogTimeout, _ = strconv.Atoi(key.String())
+	}
+
+	pool.RequestSlowlogTraceDepth = 20
+	key, err = section.GetKey("request_slowlog_trace_depth")
+	if err == nil {
+		pool.RequestSlowlogTraceDepth, _ = strconv.Atoi(key.String())
 	}
 
 	config.Pools = append(config.Pools, pool)
