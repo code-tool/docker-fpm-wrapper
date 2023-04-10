@@ -23,9 +23,8 @@ type Config struct {
 	LineBufferSize int    `mapstructure:"line-buffer-size"`
 
 	//
-	Listen         string        `mapstructure:"listen"`
-	MetricsPath    string        `mapstructure:"metrics-path"`
-	ScrapeInterval time.Duration `mapstructure:"scrape-interval"`
+	Listen      string `mapstructure:"listen"`
+	MetricsPath string `mapstructure:"metrics-path"`
 
 	ShutdownDelay time.Duration `mapstructure:"shutdown-delay"`
 }
@@ -45,7 +44,6 @@ func parseCommandLineFlags() {
 	// Prom section
 	pflag.String("listen", ":8080", "prometheus statistic addr")
 	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
-	pflag.Duration("scrape-interval", time.Second, "fpm metrics scrape interval")
 
 	pflag.Duration("shutdown-delay", 500*time.Millisecond, "Delay before process shutdown")
 

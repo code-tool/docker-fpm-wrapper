@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -86,12 +87,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.ScrapeInterval > 0 {
-		if err = phpfpm.RegisterPrometheus(fpmConfig, cfg.ScrapeInterval); err != nil {
-			log.Fatal("can't init prometheus collector", zap.Error(err))
-			os.Exit(1)
-		}
-	}
+	prometheus.MustRegister(
+		phpfpm.NewPromCollector(log.Named("prom-collector"), phpfpm.NewPromMetrics(), fpmConfig.Pools),
+	)
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
