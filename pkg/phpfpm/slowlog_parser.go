@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/code-tool/docker-fpm-wrapper/pkg/line"
 )
 
 const (
@@ -122,33 +124,6 @@ func (slp *SlowlogParser) parseLine(line []byte, entry *SlowlogEntry, state *int
 	return false
 }
 
-func (slp *SlowlogParser) readLine(bufioReader *bufio.Reader) ([]byte, error) {
-	skip := false
-
-	for {
-		line, err := bufioReader.ReadSlice('\n')
-		if errors.Is(err, io.EOF) {
-			return nil, err
-		}
-
-		if errors.Is(err, bufio.ErrBufferFull) {
-			skip = true
-			continue
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		if skip {
-			skip = false
-			continue
-		}
-
-		return line, nil
-	}
-}
-
 func (slp *SlowlogParser) createEntry() SlowlogEntry {
 	return SlowlogEntry{Stacktrace: make([]SlowlogTraceEntry, 0, slp.maxTraceLen)}
 }
@@ -161,7 +136,7 @@ func (slp *SlowlogParser) Parse(ctx context.Context, r io.Reader, out chan Slowl
 		bufioReader := bufio.NewReader(r)
 
 		for {
-			line, err := slp.readLine(bufioReader)
+			buf, err := line.ReadOne(bufioReader)
 			if err != nil {
 				errCh <- err
 
@@ -172,8 +147,8 @@ func (slp *SlowlogParser) Parse(ctx context.Context, r io.Reader, out chan Slowl
 			case <-ctx.Done():
 				return
 			default:
-				lineCopy := make([]byte, len(line))
-				copy(lineCopy, line)
+				lineCopy := make([]byte, len(buf))
+				copy(lineCopy, buf)
 
 				lineCh <- lineCopy
 			}
