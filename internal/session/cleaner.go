@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/procfs"
+	"go.uber.org/multierr"
 )
 
 /*
@@ -175,11 +175,11 @@ func (c *Cleaner) cleanupForPhpAnsSapi(phpVersion string, sapi sapiInfo) error {
 
 	var result error
 	if err := c.touchOpenFiles(sapi.GetProcName(phpVersion), sessConfig.SavePath); err != nil {
-		result = multierror.Append(result, err)
+		result = multierr.Append(result, err)
 	}
 
 	if err := c.removeSessionFiles(sessConfig.SavePath, sessConfig.GcMaxLifetime); err != nil {
-		result = multierror.Append(result, err)
+		result = multierr.Append(result, err)
 	}
 
 	return result
@@ -195,7 +195,7 @@ func (c *Cleaner) Cleanup() error {
 	for _, phpVersion := range phpVersions {
 		for _, sapi := range sapis {
 			if err := c.cleanupForPhpAnsSapi(phpVersion, sapi); err != nil {
-				result = multierror.Append(result, err)
+				result = multierr.Append(result, err)
 			}
 		}
 	}

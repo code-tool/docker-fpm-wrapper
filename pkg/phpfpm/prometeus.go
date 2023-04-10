@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 )
 
 const namespace = "phpfpm"
@@ -67,7 +67,7 @@ func (s *stat) UpdateStatuses() error {
 	for i := range s.statuses {
 		select {
 		case err := <-errCh:
-			result = multierror.Append(result, err)
+			result = multierr.Append(result, err)
 		case s.statuses[i] = <-statusCh:
 		}
 	}
