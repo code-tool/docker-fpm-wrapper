@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/code-tool/docker-fpm-wrapper/pkg/line"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
 
@@ -23,16 +24,24 @@ func NewDataListener(socketPath string, rPool *util.ReaderPool, writer io.Writer
 	return &DataListener{socketPath: socketPath, rPool: rPool, writer: writer, errorChan: errorChan}
 }
 
+func (l *DataListener) normalizeLine(line []byte) []byte {
+	ll := len(line)
+	if ll > 1 && line[ll-2] == '\r' {
+		line[ll-2] = line[ll-1]
+		line = line[:ll-1]
+	}
+
+	return line
+}
+
 func (l *DataListener) handleConnection(conn net.Conn) {
+	defer conn.Close()
+
 	reader := l.rPool.Get(conn)
+	defer l.rPool.Put(reader)
 
 	for {
-		line, err := util.ReadLine(reader)
-
-		if line != nil && len(line) > 0 {
-			_, _ = l.writer.Write(line)
-		}
-
+		buf, err := line.ReadOne(reader)
 		if err != nil {
 			if err != io.EOF {
 				l.errorChan <- err
@@ -40,10 +49,13 @@ func (l *DataListener) handleConnection(conn net.Conn) {
 
 			break
 		}
-	}
 
-	l.rPool.Put(reader)
-	_ = conn.Close()
+		if len(buf) == 0 {
+			continue
+		}
+
+		_, _ = l.writer.Write(l.normalizeLine(buf))
+	}
 }
 
 func (l *DataListener) initSocket() error {
