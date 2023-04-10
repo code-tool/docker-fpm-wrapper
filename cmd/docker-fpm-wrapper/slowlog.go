@@ -23,7 +23,7 @@ func (sle *slowlogToZapEncoder) reset() {
 }
 
 func (sle *slowlogToZapEncoder) add(s string) {
-	if sle.strBuf[len(sle.strBuf)-1] == s {
+	if l := len(sle.strBuf); l > 1 && sle.strBuf[l-1] == s {
 		return
 	}
 
