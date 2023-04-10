@@ -172,8 +172,8 @@ func (slp *SlowlogParser) Parse(ctx context.Context, r io.Reader, out chan Slowl
 			out <- entry
 			entry = slp.createEntry()
 			state = stateParseHeader
-		case line := <-lineCh:
-			if slp.parseLine(line, &entry, &state) {
+		case lineBuf := <-lineCh:
+			if slp.parseLine(lineBuf, &entry, &state) {
 				timeoutTimer.Stop()
 				out <- entry
 				entry = slp.createEntry()
