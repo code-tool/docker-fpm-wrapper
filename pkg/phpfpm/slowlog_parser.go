@@ -3,12 +3,11 @@ package phpfpm
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -18,6 +17,7 @@ const (
 	stateParseStacktrace
 )
 
+const stacktraceParsingTimeout = 25 * time.Millisecond
 const slowlogTimeFormat = "02-Jan-2006 15:04:05"
 
 var (
@@ -25,65 +25,12 @@ var (
 	stacktraceEntryRegexp = regexp.MustCompile(`^\[([^]]+)]\s+(\S+)\s+([^:]+):(\d+)(?:[\r\n]+|$)`)
 )
 
-type SlowlogTraceEntry struct {
-	PtrHex  string
-	FunName string
-	Path    string
-	Line    int
-}
-
-type SlowlogEntry struct {
-	CreatedAt      time.Time
-	PoolName       string
-	Pid            int
-	ScriptFilename string
-	Stacktrace     []SlowlogTraceEntry
-}
-
-func (se *SlowlogEntry) Reset() {
-	se.CreatedAt = time.Time{}
-	se.PoolName = ""
-	se.Pid = 0
-	se.ScriptFilename = ""
-	se.Stacktrace = se.Stacktrace[:0]
-}
-
-func (se *SlowlogEntry) String() string {
-	var (
-		err error
-		b   strings.Builder
-	)
-
-	_, err = fmt.Fprintf(&b, "[%s]  [pool %s] pid %d\n", se.CreatedAt.Format(slowlogTimeFormat), se.PoolName, se.Pid)
-	if err != nil {
-		return ""
-	}
-
-	if _, err = fmt.Fprintf(&b, "script_filename = %s\n", se.ScriptFilename); err != nil {
-		return ""
-	}
-
-	for i := range se.Stacktrace {
-		_, err := fmt.Fprintf(&b, "[%s] %s %s:%d\n",
-			se.Stacktrace[i].PtrHex,
-			se.Stacktrace[i].FunName,
-			se.Stacktrace[i].Path,
-			se.Stacktrace[i].Line,
-		)
-
-		if err != nil {
-			return ""
-		}
-	}
-
-	return b.String()
-}
-
 type SlowlogParser struct {
+	maxTraceLen int
 }
 
-func NewSlowlogParser() *SlowlogParser {
-	return &SlowlogParser{}
+func NewSlowlogParser(maxTraceLen int) *SlowlogParser {
+	return &SlowlogParser{maxTraceLen: maxTraceLen}
 }
 
 func (slp *SlowlogParser) parseHeader(line []byte, entry *SlowlogEntry) error {
@@ -138,18 +85,50 @@ func (slp *SlowlogParser) parseStacktraceEntry(line []byte, entry *SlowlogEntry)
 	return nil
 }
 
-func (slp *SlowlogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEntry, error) {
-	skip := false
-	state := stateParseHeader
+func (slp *SlowlogParser) parseLine(line []byte, entry *SlowlogEntry, state *int) bool {
+	switch *state {
+	case stateParseHeader:
+		if err := slp.parseHeader(line, entry); err != nil {
+			entry.Reset()
+			break
+		}
+		*state = stateParseFilename
+	case stateParseFilename:
+		if err := slp.parseFilename(line, entry); err != nil {
+			entry.Reset()
+			*state = stateParseHeader
+			break
+		}
+		*state = stateParseStacktrace
+	case stateParseStacktrace:
+		if bytes.Equal(line, []byte{'\n'}) {
+			*state = stateParseHeader
+			return true
+		}
 
-	entry := SlowlogEntry{
-		Stacktrace: make([]SlowlogTraceEntry, 0),
+		if err := slp.parseStacktraceEntry(line, entry); err != nil {
+			entry.Reset()
+			*state = stateParseHeader
+			break
+		}
+
+		if slp.maxTraceLen > 0 && len(entry.Stacktrace) >= slp.maxTraceLen {
+			return true
+		}
+	default:
+		panic("unexpected state")
 	}
+
+	return false
+}
+
+func (slp *SlowlogParser) readLine(bufioReader *bufio.Reader) ([]byte, error) {
+	skip := false
 
 	for {
 		line, err := bufioReader.ReadSlice('\n')
 		if errors.Is(err, io.EOF) {
-			return entry, err
+			return nil, err
 		}
 
 		if errors.Is(err, bufio.ErrBufferFull) {
@@ -158,7 +137,7 @@ func (slp *SlowlogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEn
 		}
 
 		if err != nil {
-			return entry, err
+			return nil, err
 		}
 
 		if skip {
@@ -166,41 +145,69 @@ func (slp *SlowlogParser) parseSingleEntry(bufioReader *bufio.Reader) (SlowlogEn
 			continue
 		}
 
-		switch state {
-		case stateParseHeader:
-			if err := slp.parseHeader(line, &entry); err != nil {
-				entry.Reset()
-				continue
-			}
-			state = stateParseFilename
-		case stateParseFilename:
-			if err := slp.parseFilename(line, &entry); err != nil {
-				entry.Reset()
-				state = stateParseFilename
-				continue
-			}
-			state = stateParseStacktrace
-		case stateParseStacktrace:
-			if bytes.Compare(line, []byte{'\n'}) == 0 {
-				return entry, nil
-			}
-			if err := slp.parseStacktraceEntry(line, &entry); err != nil {
-				entry.Reset()
-				state = stateParseHeader
-			}
-		}
+		return line, nil
 	}
 }
 
-func (slp *SlowlogParser) Parse(r io.Reader, out chan SlowlogEntry) error {
-	bufioReader := bufio.NewReader(r)
+func (slp *SlowlogParser) createEntry() SlowlogEntry {
+	return SlowlogEntry{Stacktrace: make([]SlowlogTraceEntry, 0, slp.maxTraceLen)}
+}
+
+func (slp *SlowlogParser) Parse(ctx context.Context, r io.Reader, out chan SlowlogEntry) error {
+	errCh := make(chan error)
+	lineCh := make(chan []byte)
+
+	go func() {
+		bufioReader := bufio.NewReader(r)
+
+		for {
+			line, err := slp.readLine(bufioReader)
+			if err != nil {
+				errCh <- err
+
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				lineCopy := make([]byte, len(line))
+				copy(lineCopy, line)
+
+				lineCh <- lineCopy
+			}
+		}
+	}()
+
+	timeoutTimer := time.NewTimer(25 * time.Millisecond)
+	timeoutTimer.Stop()
+
+	entry := slp.createEntry()
+	state := stateParseHeader
 
 	for {
-		entry, err := slp.parseSingleEntry(bufioReader)
-		if err != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-errCh:
+			timeoutTimer.Stop()
 			return err
-		}
+		case <-timeoutTimer.C:
+			out <- entry
+			entry = slp.createEntry()
+			state = stateParseHeader
+		case line := <-lineCh:
+			if slp.parseLine(line, &entry, &state) {
+				timeoutTimer.Stop()
+				out <- entry
+				entry = slp.createEntry()
+				continue
+			}
 
-		out <- entry
+			if state == stateParseStacktrace {
+				timeoutTimer.Reset(stacktraceParsingTimeout)
+			}
+		}
 	}
 }

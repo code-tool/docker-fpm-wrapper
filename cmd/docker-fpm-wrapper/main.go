@@ -9,6 +9,8 @@ import (
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/code-tool/docker-fpm-wrapper/internal/applog"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
@@ -38,23 +40,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	syncStderr := zapcore.Lock(os.Stderr)
+	log, err := createLogger(cfg.LogEncoder, cfg.LogLevel, syncStderr)
+
 	if cfg.FpmPath == "" {
-		fmt.Println("php-fpm path not set")
+		log.Error("php-fpm path not set")
 		os.Exit(1)
 	}
 
 	errCh := make(chan error, 1)
-	stderr := util.NewSyncWriter(os.Stderr)
+	ctx, cancelCtx := context.WithCancel(context.Background())
 
 	env := os.Environ()
 
 	if cfg.WrapperSocket != "null" {
 		env = append(env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", cfg.WrapperSocket))
-
-		dataListener := applog.NewDataListener(cfg.WrapperSocket, util.NewReaderPool(cfg.LineBufferSize), stderr, errCh)
+		dataListener := applog.NewDataListener(cfg.WrapperSocket, util.NewReaderPool(cfg.LineBufferSize), syncStderr, errCh)
 
 		if err = dataListener.Start(); err != nil {
-			fmt.Printf("Can't start listen: %v", err)
+			log.Error("Can't start listen", zap.Error(err))
 			os.Exit(1)
 		}
 
@@ -63,28 +67,30 @@ func main() {
 
 	fpmConfig, err := phpfpm.ParseConfig(cfg.FpmConfigPath)
 	if err != nil {
-		fmt.Printf("Can't parse fpm config: %v\n", err)
+		log.Fatal("Can't parse fpm config", zap.Error(err))
 		os.Exit(1)
 	}
 
 	if !cfg.FpmSlowlogProxyDisabled {
-		err = startSlowlogProxies(context.TODO(), fpmConfig, stderr)
-		if err != nil {
-			fmt.Printf("Can't start slowlog proxies: %v\n", err)
+		if err = startSlowlogProxies(ctx, fpmConfig, log); err != nil {
+			log.Fatal("Can't start slowlog proxies", zap.Error(err))
 			os.Exit(1)
 		}
 	}
 
-	fpmProcess := phpfpm.NewProcess(
-		cfg.FpmPath, cfg.FpmConfigPath,
-		os.Stdout, stderr,
-		cfg.ShutdownDelay,
-		env, findFpmArgs()...,
-	)
+	fpmProcess := phpfpm.
+		NewProcess(cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, findFpmArgs()...)
 
 	if err = fpmProcess.Start(); err != nil {
-		fmt.Printf("exec.Command: %v", err)
+		log.Fatal("Can't start php-fpm", zap.Error(err))
 		os.Exit(1)
+	}
+
+	if cfg.ScrapeInterval > 0 {
+		if err = phpfpm.RegisterPrometheus(fpmConfig, cfg.ScrapeInterval); err != nil {
+			log.Fatal("can't init prometheus collector", zap.Error(err))
+			os.Exit(1)
+		}
 	}
 
 	signalCh := make(chan os.Signal, 1)
@@ -101,21 +107,15 @@ func main() {
 		errCh <- http.ListenAndServe(cfg.Listen, nil)
 	}()
 
-	if cfg.ScrapeInterval > 0 {
-		err = phpfpm.RegisterPrometheus(fpmConfig, cfg.ScrapeInterval)
-		if err != nil {
-			fmt.Printf("Can't init prometheus collectior: %v", err)
-			os.Exit(1)
-		}
-	}
-
 	for {
 		select {
 		case err := <-errCh:
+			cancelCtx()
 			if err != nil {
-				panic(err)
+				log.Fatal("", zap.Error(err))
 			}
 		case exitCode := <-fpmExitCodeCh:
+			cancelCtx()
 			os.Exit(exitCode)
 		}
 	}

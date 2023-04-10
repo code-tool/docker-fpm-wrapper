@@ -2,6 +2,7 @@ package phpfpm
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -20,14 +21,14 @@ func TestSlowlogParser(t *testing.T) {
 	}
 	defer f.Close()
 
-	slp := NewSlowlogParser()
+	slp := NewSlowlogParser(0)
 	out := make(chan SlowlogEntry)
 
 	pipeReader, pipeWriter := io.Pipe()
 
 	go func() {
 		defer close(out)
-		if err := slp.Parse(pipeReader, out); err != nil && !errors.Is(err, io.EOF) {
+		if err := slp.Parse(context.TODO(), pipeReader, out); err != nil && !errors.Is(err, io.EOF) {
 			t.Fail()
 		}
 	}()

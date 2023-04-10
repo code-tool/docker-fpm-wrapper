@@ -10,10 +10,13 @@ import (
 )
 
 type Config struct {
+	LogLevel   int    `mapstructure:"log-level"`
+	LogEncoder string `mapstructure:"log-encoder"`
+
 	FpmPath       string `mapstructure:"fpm"`
 	FpmConfigPath string `mapstructure:"fpm-config"`
 
-	FpmSlowlogProxyDisabled bool
+	FpmSlowlogProxyDisabled bool `mapstructure:"fpm-no-slowlog"`
 
 	// Logging proxy section
 	WrapperSocket  string `mapstructure:"wrapper-socket"`
@@ -28,6 +31,9 @@ type Config struct {
 }
 
 func parseCommandLineFlags() {
+	pflag.Int8("log-level", -1, "Log level. -1 debug ")
+	pflag.String("log-encoder", "auto", "Internal logging encoder")
+
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
 	pflag.StringP("fpm-config", "c", "/etc/php/php-fpm.conf", "path to php-fpm config file")
 	pflag.Bool("fpm-no-slowlog", false, "Disable php-fpm slowlog parsing and proxy")
