@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/code-tool/docker-fpm-wrapper/internal/applog"
+	"github.com/code-tool/docker-fpm-wrapper/internal/breader"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
-	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
 
 func findFpmArgs() []string {
@@ -55,7 +55,7 @@ func main() {
 
 	if cfg.WrapperSocket != "null" {
 		env = append(env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", cfg.WrapperSocket))
-		dataListener := applog.NewDataListener(cfg.WrapperSocket, util.NewReaderPool(cfg.LineBufferSize), syncStderr, errCh)
+		dataListener := applog.NewDataListener(cfg.WrapperSocket, breader.NewPool(cfg.LineBufferSize), syncStderr, errCh)
 
 		if err = dataListener.Start(); err != nil {
 			log.Error("Can't start listen", zap.Error(err))

@@ -7,20 +7,20 @@ import (
 	"net"
 	"os"
 
+	"github.com/code-tool/docker-fpm-wrapper/internal/breader"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/line"
-	"github.com/code-tool/docker-fpm-wrapper/pkg/util"
 )
 
 type DataListener struct {
 	socketPath string
 	listener   net.Listener
-	rPool      *util.ReaderPool
+	rPool      *breader.Pool
 
 	writer    io.Writer
 	errorChan chan error
 }
 
-func NewDataListener(socketPath string, rPool *util.ReaderPool, writer io.Writer, errorChan chan error) *DataListener {
+func NewDataListener(socketPath string, rPool *breader.Pool, writer io.Writer, errorChan chan error) *DataListener {
 	return &DataListener{socketPath: socketPath, rPool: rPool, writer: writer, errorChan: errorChan}
 }
 
