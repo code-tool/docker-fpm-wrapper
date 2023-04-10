@@ -12,8 +12,9 @@ import (
 )
 
 type Config struct {
-	Include string
-	Pools   []Pool
+	Include  string
+	ErrorLog string
+	Pools    []Pool
 }
 
 type Pool struct {
@@ -76,6 +77,10 @@ func ParseConfig(fpmConfigPath string) (Config, error) {
 	global, err := cfg.GetSection("global")
 	if err != nil {
 		return c, err
+	}
+
+	if key, err := global.GetKey("error_log"); err == nil {
+		c.ErrorLog = key.String()
 	}
 
 	if include, err := global.GetKey("include"); err == nil {
