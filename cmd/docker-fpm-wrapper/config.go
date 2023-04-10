@@ -16,7 +16,8 @@ type Config struct {
 	FpmPath       string `mapstructure:"fpm"`
 	FpmConfigPath string `mapstructure:"fpm-config"`
 
-	FpmSlowlogProxyDisabled bool `mapstructure:"fpm-no-slowlog"`
+	FpmNoErrlogProxy  bool `mapstructure:"fpm-no-errlog"`
+	FpmNoSlowlogProxy bool `mapstructure:"fpm-no-slowlog"`
 
 	// Logging proxy section
 	WrapperSocket  string `mapstructure:"wrapper-socket"`
@@ -35,6 +36,8 @@ func parseCommandLineFlags() {
 
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
 	pflag.StringP("fpm-config", "c", "/etc/php/php-fpm.conf", "path to php-fpm config file")
+
+	pflag.Bool("fpm-no-errlog", false, "Disable php-fpm errlog parsing and proxy")
 	pflag.Bool("fpm-no-slowlog", false, "Disable php-fpm slowlog parsing and proxy")
 
 	// Logging proxy section
