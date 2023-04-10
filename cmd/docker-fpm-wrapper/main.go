@@ -77,7 +77,7 @@ func main() {
 	}
 
 	if !cfg.FpmSlowlogProxyDisabled {
-		if err = startSlowlogProxies(ctx, fpmConfig, log); err != nil {
+		if err = startSlowlogProxies(ctx, log.Named("php-fpm"), fpmConfig.Pools); err != nil {
 			log.Fatal("Can't start slowlog proxies", zap.Error(err))
 			os.Exit(1)
 		}

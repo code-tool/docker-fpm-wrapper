@@ -24,7 +24,7 @@ func startSlowlogProxyForPool(ctx context.Context, pool phpfpm.Pool, out chan ph
 	return nil
 }
 
-func startSlowlogProxies(ctx context.Context, fpmConfig phpfpm.Config, log *zap.Logger) error {
+func startSlowlogProxies(ctx context.Context, log *zap.Logger, pools []phpfpm.Pool) error {
 	outCh := make(chan phpfpm.SlowlogEntry)
 	go func() {
 		slowlogEnc := zapx.NewSlowlogEncoder()
@@ -33,7 +33,7 @@ func startSlowlogProxies(ctx context.Context, fpmConfig phpfpm.Config, log *zap.
 			case <-ctx.Done():
 				return
 			case entry := <-outCh:
-				if ce := log.Check(zap.WarnLevel, "slowlog detected"); ce != nil {
+				if ce := log.Check(zap.WarnLevel, "slowlog"); ce != nil {
 					ce.Time = entry.CreatedAt
 					ce.Write(slowlogEnc.Encode(entry)...)
 				}
@@ -41,7 +41,7 @@ func startSlowlogProxies(ctx context.Context, fpmConfig phpfpm.Config, log *zap.
 		}
 	}()
 
-	for _, pool := range fpmConfig.Pools {
+	for _, pool := range pools {
 		if pool.SlowlogPath == "" {
 			continue
 		}
