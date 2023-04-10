@@ -9,7 +9,7 @@ import (
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
-func startSlowlogProxy(ctx context.Context, log *zap.Logger, fPath string) error {
+func startErrLogProxy(ctx context.Context, log *zap.Logger, fPath string) error {
 	if fPath == "" {
 		return nil
 	}
