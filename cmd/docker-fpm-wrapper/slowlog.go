@@ -4,116 +4,26 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
-	"sort"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/sys/unix"
 
+	"github.com/code-tool/docker-fpm-wrapper/internal/zapx"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
-type slowlogToZapEncoder struct {
-	strBuf []string
-}
-
-func (sle *slowlogToZapEncoder) reset() {
-	sle.strBuf = sle.strBuf[:0]
-}
-
-func (sle *slowlogToZapEncoder) add(s string) {
-	if l := len(sle.strBuf); l > 1 && sle.strBuf[l-1] == s {
-		return
-	}
-
-	i := sort.SearchStrings(sle.strBuf, s)
-	sle.strBuf = append(sle.strBuf, "")
-	copy(sle.strBuf[i+1:], sle.strBuf[i:])
-
-	sle.strBuf[i] = s
-}
-
-func (sle *slowlogToZapEncoder) addDir(p string) {
-	sle.add(path.Dir(p))
-}
-
-func (sle *slowlogToZapEncoder) longestCommonPrefOffset() int {
-	offset := 0
-	endPrefix := false
-
-	if len(sle.strBuf) <= 0 {
-		return 0
-	}
-
-	first := sle.strBuf[0]
-	last := sle.strBuf[len(sle.strBuf)-1]
-
-	for i := 0; i < len(first); i++ {
-		if !endPrefix && string(last[i]) == string(first[i]) {
-			offset = i + 1
-		} else {
-			endPrefix = true
-		}
-	}
-
-	return offset
-}
-
-func (sle *slowlogToZapEncoder) encodeStacktraceEntry(encoder zapcore.ObjectEncoder, entry phpfpm.SlowlogTraceEntry, pathOffset int) {
-	encoder.AddString("path", entry.Path[pathOffset:])
-	encoder.AddString("func", entry.FunName)
-	encoder.AddInt("line", entry.Line)
-}
-
-func (sle *slowlogToZapEncoder) encodeStacktrace(stacktrace []phpfpm.SlowlogTraceEntry, pathOffset int) zap.Field {
-	return zap.Array("trace", zapcore.ArrayMarshalerFunc(func(encoder zapcore.ArrayEncoder) error {
-		for i := range stacktrace {
-			err := encoder.AppendObject(
-				zapcore.ObjectMarshalerFunc(func(encoder zapcore.ObjectEncoder) error {
-					sle.encodeStacktraceEntry(encoder, stacktrace[i], pathOffset)
-
-					return nil
-				}),
-			)
-
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}))
-}
-
-func (sle *slowlogToZapEncoder) Encode(entry phpfpm.SlowlogEntry) []zap.Field {
-	sle.reset()
-
-	sle.addDir(entry.ScriptFilename)
-	for i := range entry.Stacktrace {
-		sle.addDir(entry.Stacktrace[i].Path)
-	}
-
-	pathOffset := sle.longestCommonPrefOffset()
-
-	return []zap.Field{
-		zap.String("filename", entry.ScriptFilename[pathOffset:]),
-		sle.encodeStacktrace(entry.Stacktrace, pathOffset),
-	}
-}
-
 func startSlowlogProxyForPool(ctx context.Context, pool phpfpm.Pool, out chan phpfpm.SlowlogEntry) error {
 	if err := os.Remove(pool.SlowlogPath); err != nil && !os.IsNotExist(err) {
-		return err
+		return fmt.Errorf("can't remove slowlog file: %w", err)
 	}
 
 	if err := unix.Mkfifo(pool.SlowlogPath, 0666); err != nil {
-		return err
+		return fmt.Errorf("can't create linux pipe for slowlog: %w", err)
 	}
 
 	fifoF, err := os.OpenFile(pool.SlowlogPath, os.O_RDWR, os.ModeNamedPipe)
 	if err != nil {
-		fmt.Println("Couldn't open pipe with error: ", err)
+		return fmt.Errorf("can't open pipe with error: %w", err)
 	}
 
 	go func() {
@@ -133,7 +43,7 @@ func startSlowlogProxyForPool(ctx context.Context, pool phpfpm.Pool, out chan ph
 func startSlowlogProxies(ctx context.Context, fpmConfig phpfpm.Config, log *zap.Logger) error {
 	outCh := make(chan phpfpm.SlowlogEntry)
 	go func() {
-		slowlogEnc := &slowlogToZapEncoder{strBuf: make([]string, 0, 16)}
+		slowlogEnc := zapx.NewSlowlogEncoder()
 		for {
 			select {
 			case <-ctx.Done():
