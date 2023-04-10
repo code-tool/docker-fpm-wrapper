@@ -20,7 +20,6 @@ const (
 )
 
 const stacktraceParsingTimeout = 25 * time.Millisecond
-const slowlogTimeFormat = "02-Jan-2006 15:04:05"
 
 var (
 	headerRegexp          = regexp.MustCompile(`^\[([^]]+)]\s+\[pool\s([^]]+)]\s+pid\s+(\d+)(?:[\r\n]|$)`)

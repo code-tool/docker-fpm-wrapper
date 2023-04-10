@@ -35,7 +35,7 @@ func (se *SlowlogEntry) String() string {
 		b   strings.Builder
 	)
 
-	_, err = fmt.Fprintf(&b, "[%s]  [pool %s] pid %d\n", se.CreatedAt.Format(slowlogTimeFormat), se.PoolName, se.Pid)
+	_, err = fmt.Fprintf(&b, "[%s]  [pool %s] pid %d\n", se.CreatedAt.Format(logTimeFormat), se.PoolName, se.Pid)
 	if err != nil {
 		return ""
 	}
