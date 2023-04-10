@@ -1,10 +1,10 @@
 package util
 
 import (
-	"sync"
 	"bufio"
 	"bytes"
 	"io"
+	"sync"
 )
 
 type ReaderPool struct {
@@ -17,11 +17,7 @@ func NewReaderPool(bufSize int) *ReaderPool {
 
 	return &ReaderPool{
 		nullReader: nullReader,
-		sPool: sync.Pool{
-			New: func() interface{} {
-				return bufio.NewReaderSize(nullReader, bufSize)
-			},
-		},
+		sPool:      sync.Pool{New: func() any { return bufio.NewReaderSize(nullReader, bufSize) }},
 	}
 }
 
