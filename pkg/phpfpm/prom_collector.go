@@ -1,7 +1,9 @@
 package phpfpm
 
 import (
+	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -42,8 +44,47 @@ func (c *PromCollector) setAndCollect(gaugeVec *prometheus.GaugeVec, poolName st
 	gauge.Collect(ch)
 }
 
+func (c *PromCollector) getStatusListenPath(pool Pool) string {
+	if pool.StatusListen != "" {
+		return pool.StatusListen
+	}
+
+	return pool.Listen
+}
+
+func (c *PromCollector) isDigitOnlyStr(s string) bool {
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (c *PromCollector) listenToNetAndAddr(listen string) (string, string) {
+	network := "unix"
+	const localhost = "127.0.0.1"
+	semicolonPos := strings.IndexByte(listen, ':')
+
+	if semicolonPos != -1 {
+		network = "tcp"
+		if semicolonPos == 0 {
+			listen = localhost + listen
+		}
+	}
+
+	if c.isDigitOnlyStr(listen) {
+		network = "tcp"
+		listen = localhost + ":" + listen
+	}
+
+	return network, listen
+}
+
 func (c *PromCollector) collectForPool(pool Pool, ch chan<- prometheus.Metric) {
-	status, err := GetStats(pool.Listen, pool.StatusPath)
+	net, addr := c.listenToNetAndAddr(c.getStatusListenPath(pool))
+	status, err := GetStats(net, addr, pool.StatusPath)
 	if err != nil {
 		c.log.Error("can't collect metrics", zap.String("pool", pool.Name), zap.Error(err))
 		return

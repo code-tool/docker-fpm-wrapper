@@ -3,7 +3,6 @@ package phpfpm
 import (
 	"encoding/json"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/tomasen/fcgi_client"
@@ -26,13 +25,8 @@ type Status struct {
 	SlowRequests       int    `json:"slow requests"`
 }
 
-func GetStats(listen, statusPath string) (*Status, error) {
-	network := "tcp"
-	if strings.Contains(listen, "/") && listen[0:1] != "[" {
-		network = "unix"
-	}
-
-	fcgi, err := fcgiclient.DialTimeout(network, listen, time.Second)
+func GetStats(net, addr, statusPath string) (*Status, error) {
+	fcgi, err := fcgiclient.DialTimeout(net, addr, time.Second)
 	if err != nil {
 		return nil, err
 	}
