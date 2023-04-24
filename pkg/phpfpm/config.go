@@ -21,6 +21,7 @@ type Pool struct {
 	Name                     string
 	Listen                   string
 	StatusPath               string
+	StatusListen             string
 	SlowlogPath              string
 	RequestSlowlogTimeout    int
 	RequestSlowlogTraceDepth int
@@ -44,6 +45,11 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 	key, err = section.GetKey("pm.status_path")
 	if err == nil {
 		pool.StatusPath = key.String()
+	}
+
+	key, err = section.GetKey("pm.status_listen")
+	if err == nil {
+		pool.StatusListen = key.String()
 	}
 
 	key, err = section.GetKey("slowlog")
