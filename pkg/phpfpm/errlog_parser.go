@@ -30,7 +30,7 @@ var errLogEntryRegexp = regexp.MustCompile(`^\[([^]]+)]\s+(ALERT|ERROR|WARNING|N
 
 func (p *ErrLogParser) ParseOne(r *bufio.Reader) (ErrLogEntry, error) {
 	result := ErrLogEntry{}
-	buf, err := line.ReadOne(r)
+	buf, err := line.ReadOne(r, false)
 	if err != nil {
 		return result, err
 	}

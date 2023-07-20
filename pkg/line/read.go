@@ -6,13 +6,17 @@ import (
 	"io"
 )
 
-func ReadOne(r *bufio.Reader) ([]byte, error) {
+func ReadOne(r *bufio.Reader, retBufOnEOF bool) ([]byte, error) {
 	skip := false
 
 	for {
 		line, err := r.ReadSlice('\n')
 
 		if errors.Is(err, io.EOF) {
+			if retBufOnEOF {
+				return line, nil
+			}
+
 			return nil, err
 		}
 

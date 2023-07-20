@@ -12,7 +12,7 @@ import (
 func tf(t *testing.T, in string, out []byte, expectedErr error) {
 	r := bufio.NewReaderSize(bytes.NewBufferString(in), 16)
 
-	line, err := ReadOne(r)
+	line, err := ReadOne(r, false)
 	assert.Equal(t, expectedErr, err)
 	assert.Equal(t, out, line)
 }

@@ -135,7 +135,7 @@ func (slp *SlowlogParser) Parse(ctx context.Context, r io.Reader, out chan Slowl
 		bufioReader := bufio.NewReader(r)
 
 		for {
-			buf, err := line.ReadOne(bufioReader)
+			buf, err := line.ReadOne(bufioReader, false)
 			if err != nil {
 				errCh <- err
 

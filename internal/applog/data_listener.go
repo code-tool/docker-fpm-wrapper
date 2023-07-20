@@ -41,7 +41,7 @@ func (l *DataListener) handleConnection(conn net.Conn) {
 	defer l.rPool.Put(reader)
 
 	for {
-		buf, err := line.ReadOne(reader)
+		buf, err := line.ReadOne(reader, true)
 		if err != nil {
 			if err != io.EOF {
 				l.errorChan <- err
