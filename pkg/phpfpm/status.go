@@ -43,12 +43,8 @@ func GetStats(net, addr, statusPath string) (*Status, error) {
 	}
 	defer tryClose(resp.Body)
 
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
 	s := Status{}
-	err = json.Unmarshal(content, &s)
+	err = json.NewDecoder(resp.Body).Decode(&s)
 	if err != nil {
 		return nil, err
 	}
