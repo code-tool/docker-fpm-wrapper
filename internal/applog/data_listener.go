@@ -47,19 +47,19 @@ func (l *DataListener) handleConnection(conn net.Conn) {
 
 	for {
 		buf, err := line.ReadOne(reader, true)
-		if err != nil {
-			if err != io.EOF {
-				l.errorChan <- err
-			}
-
-			break
+		if len(buf) > 0 {
+			_, _ = l.writer.Write(l.normalizeLine(buf))
 		}
 
-		if len(buf) == 0 {
+		if err == nil {
 			continue
 		}
 
-		_, _ = l.writer.Write(l.normalizeLine(buf))
+		if err != io.EOF {
+			l.errorChan <- err
+		}
+
+		break
 	}
 }
 
