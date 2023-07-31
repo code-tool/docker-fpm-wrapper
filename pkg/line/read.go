@@ -13,8 +13,8 @@ func ReadOne(r *bufio.Reader, retBufOnEOF bool) ([]byte, error) {
 		line, err := r.ReadSlice('\n')
 
 		if errors.Is(err, io.EOF) {
-			if retBufOnEOF {
-				return line, nil
+			if retBufOnEOF && len(line) > 0 {
+				return line, io.EOF
 			}
 
 			return nil, err
