@@ -168,7 +168,10 @@ func (slp *SlowlogParser) Parse(ctx context.Context, r io.Reader, out chan Slowl
 			timeoutTimer.Stop()
 			return err
 		case <-timeoutTimer.C:
-			out <- entry
+			if state == stateParseStacktrace {
+				out <- entry
+			}
+
 			entry = slp.createEntry()
 			state = stateParseHeader
 		case lineBuf := <-lineCh:
