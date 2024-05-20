@@ -56,14 +56,26 @@ func main() {
 
 	if cfg.WrapperSocket != "null" {
 		env = append(env, fmt.Sprintf("FPM_WRAPPER_SOCK=unix://%s", cfg.WrapperSocket))
-		dataListener := applog.NewSockDataListener(cfg.WrapperSocket, breader.NewPool(cfg.LineBufferSize), syncStderr, errCh)
+		sockDataListener := applog.NewSockDataListener(cfg.WrapperSocket, breader.NewPool(cfg.LineBufferSize), syncStderr, errCh)
 
-		if err = dataListener.Start(); err != nil {
+		if err = sockDataListener.Start(); err != nil {
 			log.Error("Can't start listen", zap.Error(err))
 			os.Exit(1)
 		}
 
-		defer dataListener.Stop()
+		defer sockDataListener.Stop()
+	}
+
+	if cfg.WrapperPipe != "" {
+		env = append(env, fmt.Sprintf("FPM_WRAPPER_PIPE=%s", cfg.WrapperPipe))
+
+		wrapperPipe, err := createFIFOByPathCtx(ctx, cfg.WrapperPipe)
+		if err != nil {
+			log.Error("can't create pipe", zap.Error(err), zap.String("path", cfg.WrapperPipe))
+			os.Exit(1)
+		}
+
+		go applog.NewPipeProxy(log.Named("pipe-proxy"), syncStderr).Proxy(wrapperPipe)
 	}
 
 	fpmConfig, err := phpfpm.ParseConfig(cfg.FpmConfigPath)

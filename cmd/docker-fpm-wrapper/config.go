@@ -20,6 +20,7 @@ type Config struct {
 	FpmNoSlowlogProxy bool `mapstructure:"fpm-no-slowlog"`
 
 	// Logging proxy section
+	WrapperPipe    string `mapstructure:"wrapper-pipe"`
 	WrapperSocket  string `mapstructure:"wrapper-socket"`
 	LineBufferSize int    `mapstructure:"line-buffer-size"`
 
@@ -41,6 +42,7 @@ func parseCommandLineFlags() {
 	pflag.Bool("fpm-no-slowlog", false, "Disable php-fpm slowlog parsing and proxy")
 
 	// Logging proxy section
+	pflag.StringP("wrapper-pipe", "p", "/tmp/fpm-wrapper-pipe", "path to logging pipe, set '' to disable")
 	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to logging socket, set null to disable")
 	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
 

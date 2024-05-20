@@ -24,21 +24,6 @@ func NewSockDataListener(sockPath string, rPool *breader.Pool, writer io.Writer,
 	return &SockDataListener{socketPath: sockPath, rPool: rPool, writer: writer, errorChan: errorChan}
 }
 
-func (l *SockDataListener) normalizeLine(line []byte) []byte {
-	ll := len(line)
-	if ll > 0 && line[ll-1] != '\n' {
-		ll += 1
-		line = append(line, '\n')
-	}
-
-	if ll > 1 && line[ll-2] == '\r' {
-		line[ll-2] = line[ll-1]
-		line = line[:ll-1]
-	}
-
-	return line
-}
-
 func (l *SockDataListener) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -48,7 +33,7 @@ func (l *SockDataListener) handleConnection(conn net.Conn) {
 	for {
 		buf, err := line.ReadOne(reader, true)
 		if len(buf) > 0 {
-			_, _ = l.writer.Write(l.normalizeLine(buf))
+			_, _ = l.writer.Write(normalizeLine(buf))
 		}
 
 		if err == nil {
