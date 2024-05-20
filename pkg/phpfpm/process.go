@@ -1,19 +1,25 @@
 package phpfpm
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type Process struct {
+	log *zap.Logger
+
 	cmd           *exec.Cmd
 	shutdownDelay time.Duration
 }
 
 func NewProcess(
+	log *zap.Logger,
 	fpmPath string, fpmConfigPath string,
 	stdout io.Writer, stderr io.Writer,
 	shutdownDelay time.Duration,
@@ -29,7 +35,7 @@ func NewProcess(
 	cmd.Args = append(cmd.Args, "--nodaemonize")
 	cmd.Args = append(cmd.Args, "--fpm-config", fpmConfigPath)
 
-	return &Process{cmd: cmd, shutdownDelay: shutdownDelay}
+	return &Process{log: log, cmd: cmd, shutdownDelay: shutdownDelay}
 }
 
 func (p *Process) Start() error {
@@ -49,7 +55,9 @@ func (p *Process) HandleSignal(signalCh chan os.Signal) {
 			sig = syscall.SIGQUIT
 		}
 
-		p.cmd.Process.Signal(sig)
+		if err := p.cmd.Process.Signal(sig); err != nil {
+			p.log.Error("Failed to send signal to process", zap.Stringer("signal", sig), zap.Error(err))
+		}
 	}
 }
 
@@ -59,7 +67,8 @@ func (p *Process) Wait(errCh chan<- error) int {
 		return 0
 	}
 
-	exitErr, ok := err.(*exec.ExitError)
+	var exitErr *exec.ExitError
+	ok := errors.As(err, &exitErr)
 	if !ok {
 		errCh <- err
 		return -1

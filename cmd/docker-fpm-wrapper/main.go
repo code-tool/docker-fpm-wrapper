@@ -87,7 +87,7 @@ func main() {
 	}
 
 	fpmProcess := phpfpm.
-		NewProcess(cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, findFpmArgs()...)
+		NewProcess(log, cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, findFpmArgs()...)
 
 	if err = fpmProcess.Start(); err != nil {
 		log.Fatal("Can't start php-fpm", zap.Error(err))

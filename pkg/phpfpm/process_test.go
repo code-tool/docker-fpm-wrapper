@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestNewProcess(t *testing.T) {
 	stdout := bytes.NewBufferString("")
 	stderr := bytes.NewBufferString("")
 
-	p := NewProcess("echo", "configpath", stdout, stderr, 0, []string{}, "-n")
+	p := NewProcess(zap.NewNop(), "echo", "configpath", stdout, stderr, 0, []string{}, "-n")
 	assert.NoError(t, p.Start())
 
 	errCh := make(chan error, 1)
