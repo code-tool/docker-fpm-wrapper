@@ -25,7 +25,7 @@ func NewSockDataListener(sockPath string, rPool *breader.Pool, writer io.Writer,
 }
 
 func (l *SockDataListener) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	reader := l.rPool.Get(conn)
 	defer l.rPool.Put(reader)
