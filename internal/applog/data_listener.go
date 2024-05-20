@@ -11,7 +11,7 @@ import (
 	"github.com/code-tool/docker-fpm-wrapper/pkg/line"
 )
 
-type DataListener struct {
+type SockDataListener struct {
 	socketPath string
 	listener   net.Listener
 	rPool      *breader.Pool
@@ -20,11 +20,11 @@ type DataListener struct {
 	errorChan chan error
 }
 
-func NewDataListener(socketPath string, rPool *breader.Pool, writer io.Writer, errorChan chan error) *DataListener {
-	return &DataListener{socketPath: socketPath, rPool: rPool, writer: writer, errorChan: errorChan}
+func NewSockDataListener(sockPath string, rPool *breader.Pool, writer io.Writer, errorChan chan error) *SockDataListener {
+	return &SockDataListener{socketPath: sockPath, rPool: rPool, writer: writer, errorChan: errorChan}
 }
 
-func (l *DataListener) normalizeLine(line []byte) []byte {
+func (l *SockDataListener) normalizeLine(line []byte) []byte {
 	ll := len(line)
 	if ll > 0 && line[ll-1] != '\n' {
 		ll += 1
@@ -39,7 +39,7 @@ func (l *DataListener) normalizeLine(line []byte) []byte {
 	return line
 }
 
-func (l *DataListener) handleConnection(conn net.Conn) {
+func (l *SockDataListener) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	reader := l.rPool.Get(conn)
@@ -63,7 +63,7 @@ func (l *DataListener) handleConnection(conn net.Conn) {
 	}
 }
 
-func (l *DataListener) initSocket() error {
+func (l *SockDataListener) initSocket() error {
 	var err error
 	var c net.Conn
 
@@ -90,7 +90,7 @@ func (l *DataListener) initSocket() error {
 	return os.Chmod(l.socketPath, 0777)
 }
 
-func (l *DataListener) acceptConnections() {
+func (l *SockDataListener) acceptConnections() {
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
@@ -102,7 +102,7 @@ func (l *DataListener) acceptConnections() {
 	}
 }
 
-func (l *DataListener) Start() error {
+func (l *SockDataListener) Start() error {
 	err := l.initSocket()
 
 	if err == nil {
@@ -112,6 +112,6 @@ func (l *DataListener) Start() error {
 	return err
 }
 
-func (l *DataListener) Stop() {
+func (l *SockDataListener) Stop() {
 	_ = l.listener.Close()
 }
