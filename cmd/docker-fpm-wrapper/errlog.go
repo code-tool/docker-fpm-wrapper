@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 
 	"go.uber.org/zap"
 
@@ -36,7 +37,10 @@ func startErrLogProxy(ctx context.Context, log *zap.Logger, fPath string) error 
 
 	logParser := phpfpm.NewErrLogParser()
 	go func() {
-		_ = logParser.Parse(ctx, f, entryCh)
+		if err := logParser.Parse(ctx, f, entryCh); err != nil {
+			log.Error("can't parse php-fpm errorlog entry", zap.Error(err))
+		}
+		_, _ = io.Copy(io.Discard, f)
 	}()
 
 	return nil

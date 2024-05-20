@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 
 	"go.uber.org/zap"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
-func startSlowlogProxyForPool(ctx context.Context, pool phpfpm.Pool, out chan phpfpm.SlowlogEntry) error {
+func startSlowlogProxyForPool(ctx context.Context, log *zap.Logger, pool phpfpm.Pool, out chan phpfpm.SlowlogEntry) error {
 	fifoF, err := createFIFOByPathCtx(ctx, pool.SlowlogPath)
 	if err != nil {
 		return err
@@ -17,8 +18,11 @@ func startSlowlogProxyForPool(ctx context.Context, pool phpfpm.Pool, out chan ph
 
 	slowLogParser := phpfpm.NewSlowlogParser(pool.RequestSlowlogTraceDepth)
 	go func() {
-		// TODO probably should be logged
-		_ = slowLogParser.Parse(ctx, fifoF, out)
+		if err := slowLogParser.Parse(ctx, fifoF, out); err != nil {
+			log.Error("can't parse php-fpm slowlog entry", zap.Error(err))
+		}
+
+		_, _ = io.Copy(io.Discard, fifoF)
 	}()
 
 	return nil
@@ -46,7 +50,7 @@ func startSlowlogProxies(ctx context.Context, log *zap.Logger, pools []phpfpm.Po
 			continue
 		}
 
-		if err := startSlowlogProxyForPool(ctx, pool, outCh); err != nil {
+		if err := startSlowlogProxyForPool(ctx, log, pool, outCh); err != nil {
 			return err
 		}
 	}
