@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	LogLevel   int    `mapstructure:"log-level"`
+	LogLevel   string `mapstructure:"log-level"`
 	LogEncoder string `mapstructure:"log-encoder"`
 
 	FpmPath       string `mapstructure:"fpm"`
@@ -32,7 +32,7 @@ type Config struct {
 }
 
 func parseCommandLineFlags() {
-	pflag.Int8("log-level", -1, "Log level. -1 debug ")
+	pflag.String("log-level", "-1", "Log level. -1 debug ")
 	pflag.String("log-encoder", "auto", "Internal logging encoder")
 
 	pflag.StringP("fpm", "f", "", "path to php-fpm")
