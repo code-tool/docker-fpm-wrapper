@@ -49,13 +49,13 @@ func createLoggerEncoder(eName string, encoderConfig zapcore.EncoderConfig) (zap
 	}
 }
 
-func createLogger(encName string, level int, output zapcore.WriteSyncer) (*zap.Logger, error) {
+func createLogger(encName string, level zapcore.Level, output zapcore.WriteSyncer) (*zap.Logger, error) {
 	enc, err := createLoggerEncoder(encName, newZapEncoderConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	atomicLevel := zap.NewAtomicLevelAt(zapcore.Level(level))
+	atomicLevel := zap.NewAtomicLevelAt(level)
 
 	return zap.New(zapcore.NewCore(enc, output, atomicLevel)), nil
 }

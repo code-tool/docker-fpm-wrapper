@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,7 +43,21 @@ func main() {
 	}
 
 	syncStderr := zapcore.Lock(os.Stderr)
-	log, err := createLogger(cfg.LogEncoder, cfg.LogLevel, syncStderr)
+	// cfg.LogLevel can be either int or string
+	// example: it can be -1 or debug
+	// try to parse it by string
+	logLever, err := zapcore.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		// so, the string is not correct, try to parse it as int
+		logLeverRaw, err := strconv.Atoi(cfg.LogLevel)
+		if err != nil {
+			fmt.Printf("Can't parse log level '%v': %v\n", cfg.LogLevel, err)
+			os.Exit(1)
+		}
+		logLever = zapcore.Level(logLeverRaw)
+	}
+
+	log, err := createLogger(cfg.LogEncoder, logLever, syncStderr)
 
 	if cfg.FpmPath == "" {
 		log.Error("php-fpm path not set")
