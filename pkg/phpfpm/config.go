@@ -62,7 +62,7 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 		pool.RequestSlowlogTimeout, _ = strconv.Atoi(key.String())
 	}
 
-	pool.RequestSlowlogTraceDepth = 20
+	pool.RequestSlowlogTraceDepth = 64
 	key, err = section.GetKey("request_slowlog_trace_depth")
 	if err == nil {
 		pool.RequestSlowlogTraceDepth, _ = strconv.Atoi(key.String())
