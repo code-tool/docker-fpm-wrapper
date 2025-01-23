@@ -47,10 +47,10 @@ func TestSlowlogEncoder_LongestCommonPrefOffset(t *testing.T) {
 		},
 	}
 
-	sle := &SlowlogEncoder{}
+	//sle := &SlowlogEncoder{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sle.longestCommonPrefOffset(tt.input)
+			result := longestCommonPrefixOffset(tt.input) // sle.longestCommonPrefOffset(tt.input)
 			if result != tt.expected {
 				t.Errorf("longestCommonPrefOffset() = %v, want %v", result, tt.expected)
 			}

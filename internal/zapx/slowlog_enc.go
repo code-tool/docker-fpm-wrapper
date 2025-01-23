@@ -2,8 +2,6 @@ package zapx
 
 import (
 	"path"
-	"slices"
-	"sort"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -23,46 +21,15 @@ func (sle *SlowlogEncoder) reset() {
 	sle.strBuf = sle.strBuf[:0]
 }
 
-func (sle *SlowlogEncoder) add(s string) {
-	i := sort.SearchStrings(sle.strBuf, s)
-	if i < len(sle.strBuf) && sle.strBuf[i] == s {
-		// Do not insert duplicates
-		return
-	}
-
-	sle.strBuf = slices.Insert(sle.strBuf, i, s)
-}
-
 func (sle *SlowlogEncoder) addDir(p string) bool {
 	dir, _ := path.Split(p)
 	if dir == "" {
 		return false
 	}
 
-	sle.add(path.Clean(dir))
+	sle.strBuf = append(sle.strBuf, path.Clean(dir))
 
 	return true
-}
-
-func (sle *SlowlogEncoder) longestCommonPrefOffset(ss []string) int {
-	if len(ss) <= 0 {
-		return 0
-	}
-
-	if len(ss) == 1 {
-		return len(ss[0])
-	}
-
-	first := ss[0]
-	last := ss[len(ss)-1]
-
-	for i := 0; i < len(first); i++ {
-		if last[i] != first[i] {
-			return i
-		}
-	}
-
-	return len(first)
 }
 
 func (sle *SlowlogEncoder) encodeStacktraceEntry(encoder zapcore.ObjectEncoder, entry phpfpm.SlowlogTraceEntry, pathOffset int) {
@@ -101,7 +68,7 @@ func (sle *SlowlogEncoder) Encode(entry phpfpm.SlowlogEntry) []zap.Field {
 
 	pathOffset := 0
 	if cutPrefix {
-		pathOffset = sle.longestCommonPrefOffset(sle.strBuf)
+		pathOffset = longestCommonPrefixOffset(sle.strBuf)
 	}
 
 	return []zap.Field{
