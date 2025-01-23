@@ -44,17 +44,17 @@ func (sle *SlowlogEncoder) addDir(p string) bool {
 	return true
 }
 
-func (sle *SlowlogEncoder) longestCommonPrefOffset() int {
-	if len(sle.strBuf) <= 0 {
+func (sle *SlowlogEncoder) longestCommonPrefOffset(ss []string) int {
+	if len(ss) <= 0 {
 		return 0
 	}
 
-	if len(sle.strBuf) == 1 {
-		return len(sle.strBuf[0]) + 1
+	if len(ss) == 1 {
+		return len(ss[0])
 	}
 
-	first := sle.strBuf[0]
-	last := sle.strBuf[len(sle.strBuf)-1]
+	first := ss[0]
+	last := ss[len(ss)-1]
 
 	for i := 0; i < len(first); i++ {
 		if last[i] != first[i] {
@@ -62,7 +62,7 @@ func (sle *SlowlogEncoder) longestCommonPrefOffset() int {
 		}
 	}
 
-	return 0
+	return len(first)
 }
 
 func (sle *SlowlogEncoder) encodeStacktraceEntry(encoder zapcore.ObjectEncoder, entry phpfpm.SlowlogTraceEntry, pathOffset int) {
@@ -101,7 +101,7 @@ func (sle *SlowlogEncoder) Encode(entry phpfpm.SlowlogEntry) []zap.Field {
 
 	pathOffset := 0
 	if cutPrefix {
-		pathOffset = sle.longestCommonPrefOffset()
+		pathOffset = sle.longestCommonPrefOffset(sle.strBuf)
 	}
 
 	return []zap.Field{
