@@ -76,6 +76,10 @@ func (slp *SlowlogParser) parseStacktraceEntry(line []byte, entry *SlowlogEntry)
 		return err
 	}
 
+	if slp.maxTraceLen > 0 && len(entry.Stacktrace) >= slp.maxTraceLen {
+		return nil
+	}
+
 	entry.Stacktrace = append(entry.Stacktrace, SlowlogTraceEntry{
 		PtrHex:  string(line[matches[2]:matches[3]]),
 		FunName: string(line[matches[4]:matches[5]]),
@@ -111,10 +115,6 @@ func (slp *SlowlogParser) parseLine(line []byte, entry *SlowlogEntry, state *int
 			entry.Reset()
 			*state = stateParseHeader
 			break
-		}
-
-		if slp.maxTraceLen > 0 && len(entry.Stacktrace) >= slp.maxTraceLen {
-			return true
 		}
 	default:
 		panic("unexpected state")
