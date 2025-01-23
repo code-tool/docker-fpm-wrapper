@@ -2,6 +2,7 @@ package zapx
 
 import (
 	"path"
+	"slices"
 	"sort"
 
 	"go.uber.org/zap"
@@ -15,7 +16,7 @@ type SlowlogEncoder struct {
 }
 
 func NewSlowlogEncoder() *SlowlogEncoder {
-	return &SlowlogEncoder{strBuf: make([]string, 0)}
+	return &SlowlogEncoder{strBuf: make([]string, 0, 32)}
 }
 
 func (sle *SlowlogEncoder) reset() {
@@ -23,41 +24,45 @@ func (sle *SlowlogEncoder) reset() {
 }
 
 func (sle *SlowlogEncoder) add(s string) {
-	if l := len(sle.strBuf); l > 1 && sle.strBuf[l-1] == s {
+	i := sort.SearchStrings(sle.strBuf, s)
+	if i < len(sle.strBuf) && sle.strBuf[i] == s {
+		// Do not insert duplicates
 		return
 	}
 
-	i := sort.SearchStrings(sle.strBuf, s)
-	sle.strBuf = append(sle.strBuf, "")
-	copy(sle.strBuf[i+1:], sle.strBuf[i:])
-
-	sle.strBuf[i] = s
+	sle.strBuf = slices.Insert(sle.strBuf, i, s)
 }
 
-func (sle *SlowlogEncoder) addDir(p string) {
-	sle.add(path.Dir(p))
+func (sle *SlowlogEncoder) addDir(p string) bool {
+	dir, _ := path.Split(p)
+	if dir == "" {
+		return false
+	}
+
+	sle.add(path.Clean(dir))
+
+	return true
 }
 
 func (sle *SlowlogEncoder) longestCommonPrefOffset() int {
-	offset := 0
-	endPrefix := false
-
 	if len(sle.strBuf) <= 0 {
 		return 0
+	}
+
+	if len(sle.strBuf) == 1 {
+		return len(sle.strBuf[0]) + 1
 	}
 
 	first := sle.strBuf[0]
 	last := sle.strBuf[len(sle.strBuf)-1]
 
 	for i := 0; i < len(first); i++ {
-		if !endPrefix && last[i] == first[i] {
-			offset = i + 1
-		} else {
-			endPrefix = true
+		if last[i] != first[i] {
+			return i
 		}
 	}
 
-	return offset
+	return 0
 }
 
 func (sle *SlowlogEncoder) encodeStacktraceEntry(encoder zapcore.ObjectEncoder, entry phpfpm.SlowlogTraceEntry, pathOffset int) {
@@ -89,12 +94,15 @@ func (sle *SlowlogEncoder) encodeStacktrace(stacktrace []phpfpm.SlowlogTraceEntr
 func (sle *SlowlogEncoder) Encode(entry phpfpm.SlowlogEntry) []zap.Field {
 	sle.reset()
 
-	sle.addDir(entry.ScriptFilename)
+	cutPrefix := sle.addDir(entry.ScriptFilename)
 	for i := range entry.Stacktrace {
-		sle.addDir(entry.Stacktrace[i].Path)
+		cutPrefix = cutPrefix && sle.addDir(entry.Stacktrace[i].Path)
 	}
 
-	pathOffset := sle.longestCommonPrefOffset()
+	pathOffset := 0
+	if cutPrefix {
+		pathOffset = sle.longestCommonPrefOffset()
+	}
 
 	return []zap.Field{
 		zap.String("filename", entry.ScriptFilename[pathOffset:]),
