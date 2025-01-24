@@ -63,7 +63,9 @@ func (sle *SlowlogEncoder) Encode(entry phpfpm.SlowlogEntry) []zap.Field {
 
 	cutPrefix := sle.addDir(entry.ScriptFilename)
 	for i := range entry.Stacktrace {
-		cutPrefix = cutPrefix && sle.addDir(entry.Stacktrace[i].Path)
+		if cutPrefix = cutPrefix && sle.addDir(entry.Stacktrace[i].Path); !cutPrefix {
+			break
+		}
 	}
 
 	pathOffset := 0
