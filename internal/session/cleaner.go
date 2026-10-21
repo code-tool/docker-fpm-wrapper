@@ -1,220 +1,163 @@
 package session
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/prometheus/procfs"
-	"go.uber.org/multierr"
+	"go.uber.org/zap"
 )
 
-/*
-SAPIS="apache2:apache2 apache2filter:apache2 cgi:php@VERSION@ fpm:php-fpm@VERSION@ cli:php@VERSION@"
+// MasterProcess is the php-fpm master process.
+type MasterProcess interface {
+	Pid() int
+}
 
-# Iterate through all web SAPIs
-(
-proc_names=""
-for version in $(/usr/sbin/phpquery -V); do
-    for sapi in ${SAPIS}; do
-		conf_dir=${sapi%%:*}
-		proc_name=${sapi##*:}
-		if [ -e "/etc/php/${version}/${conf_dir}/php.ini" ] && [ -x "/usr/bin/php${version}" ]; then
-			# Get all session variables once so we don't need to start PHP to get each config option
-			session_config=$(PHP_INI_SCAN_DIR=/etc/php/${version}/${conf_dir}/conf.d/ "/usr/bin/php${version}" -c "/etc/php/${version}/${conf_dir}/php.ini" -d "error_reporting='~E_ALL'" -r 'foreach(ini_get_all("session") as $k => $v) echo "$k=".$v["local_value"]."\n";')
-			save_handler=$(echo "$session_config" | sed -ne 's/^session\.save_handler=\(.*\)$/\1/p')
-			save_path=$(echo "$session_config" | sed -ne 's/^session\.save_path=\(.*;\)\?\(.*\)$/\2/p')
-			gc_maxlifetime=$(($(echo "$session_config" | sed -ne 's/^session\.gc_maxlifetime=\(.*\)$/\1/p')/60))
-
-			if [ "$save_handler" = "files" ] && [ -d "$save_path" ]; then
-			proc_names="$proc_names $(echo "$proc_name" | sed -e "s,@VERSION@,$version,")";
-			printf "%s:%s\n" "$save_path" "$gc_maxlifetime"
-			fi
-		fi
-    done
-done
-
-# first find all open session files and touch them (hope it's not massive amount of files)
-for pid in $(pidof $proc_names); do
-    find "/proc/$pid/fd" -ignore_readdir_race -lname "$save_path/sess_*" -exec touch -c {} \; 2>/dev/null
-done ) | \
-    sort -rn -t: -k2,2 | \
-    sort -u -t: -k 1,1 | \
-    while IFS=: read -r save_path gc_maxlifetime; do
-	# find all files older then maxlifetime and delete them
-	find -O3 "$save_path/" -ignore_readdir_race -depth -mindepth 1 -name 'sess_*' -type f -cmin "+$gc_maxlifetime" -delete
-    done
-
-exit 0
-*/
-
+// Cleaner removes the expired session files, as the sessionclean cron job of Debian does.
+// It does not remove the files that the php-fpm master or its workers have open: it updates
+// their modification time instead.
 type Cleaner struct {
+	log    *zap.Logger
+	master MasterProcess
+
+	targets  []Target
+	interval time.Duration
 }
 
-func NewCleaner() *Cleaner {
-	return &Cleaner{}
+func NewCleaner(log *zap.Logger, master MasterProcess, targets []Target, interval time.Duration) *Cleaner {
+	return &Cleaner{log: log, master: master, targets: targets, interval: interval}
 }
 
-func (c *Cleaner) getPHPVersions() ([]string, error) {
-	// /usr/sbin/phpquery -V
-	cmd := exec.Command("/usr/sbin/phpquery")
-
-	var stdoutBuff, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuff
-	cmd.Stderr = &stderrBuf
-
-	cmd.Args = append(cmd.Args, "-V")
-
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-
-	result := strings.Split(stdoutBuff.String(), "\n")
-	return result, nil
-}
-
-func (c *Cleaner) getPhpIniPath(phpVersion string, info sapiInfo) string {
-	return fmt.Sprintf("/etc/php/%s/%s/php.ini", phpVersion, info.ConfDir)
-}
-
-func (c *Cleaner) getPhpPath(phpVersion string) string {
-	return fmt.Sprintf("/usr/bin/php%s", phpVersion)
-}
-
-func (c *Cleaner) isPhpCliExists(phpVersion string, info sapiInfo) bool {
-	_, err := os.Stat(c.getPhpIniPath(phpVersion, info))
+// openFiles returns the files that the php-fpm master and its workers have open.
+func (c *Cleaner) openFiles() (map[string]bool, error) {
+	procs, err := procfs.AllProcs()
 	if err != nil {
-		return false
+		return nil, fmt.Errorf("list processes: %w", err)
 	}
 
-	_, err = os.Stat(c.getPhpPath(phpVersion))
-
-	return err == nil
-}
-
-func (c *Cleaner) touchOpenFiles(procName string, savePath string) error {
-	pids, err := pidOf(procName)
-	if err != nil {
-		return err
-	}
-
-	prefix := savePath + "/sess_"
-	currentTime := time.Now().Local()
-
-	for _, pid := range pids {
-		proc, err := procfs.NewProc(pid)
-		if err != nil {
-			return err
+	masterPid := c.master.Pid()
+	files := make(map[string]bool)
+	for _, proc := range procs {
+		if proc.PID != masterPid {
+			stat, err := proc.Stat()
+			if err != nil || stat.PPID != masterPid {
+				continue
+			}
 		}
 
+		// The process can exit before the read.
 		targets, err := proc.FileDescriptorTargets()
 		if err != nil {
-			return nil
+			continue
 		}
 
 		for _, target := range targets {
-			if !strings.HasPrefix(target, prefix) {
-				continue
-			}
-
-			stat, err := os.Stat(target)
-			if err != nil || stat.IsDir() {
-				continue
-			}
-
-			if err := os.Chtimes(target, currentTime, currentTime); err != nil {
-				return err
-			}
+			files[target] = true
 		}
 	}
 
-	return nil
+	return files, nil
 }
 
-func (c *Cleaner) removeSessionFiles(savePath string, cutoff time.Duration) error {
-	entries, err := os.ReadDir(savePath)
-	if err != nil {
-		return err
+// cleanTarget removes the expired session files in the directory of target and in its
+// subdirectories. It returns the number of removed files.
+func (c *Cleaner) cleanTarget(ctx context.Context, target Target, openFiles map[string]bool, now time.Time) (int, error) {
+	// The kernel gives the paths of the open files without symlinks.
+	root, err := filepath.EvalSymlinks(target.Dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
 	}
-	now := time.Now()
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "sess_") {
-			continue
+	if err != nil {
+		return 0, fmt.Errorf("resolve %s: %w", target.Dir, err)
+	}
+
+	removed := 0
+	var errs []error
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			errs = append(errs, err)
+			return nil
+		}
+
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+
+		if !entry.Type().IsRegular() || !strings.HasPrefix(entry.Name(), "sess_") {
+			return nil
+		}
+
+		if openFiles[path] {
+			if err := os.Chtimes(path, now, now); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				errs = append(errs, fmt.Errorf("touch open session file: %w", err))
+			}
+
+			return nil
 		}
 
 		info, err := entry.Info()
 		if err != nil {
-			continue
+			// PHP removed the file after the read of the directory.
+			return nil
 		}
 
-		if diff := now.Sub(info.ModTime()); diff > cutoff {
-			continue
+		if now.Sub(info.ModTime()) <= target.MaxLifetime {
+			return nil
 		}
 
-		if err := os.Remove(info.Name()); err != nil {
-			return err
+		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			errs = append(errs, fmt.Errorf("remove session file: %w", err))
+			return nil
 		}
-	}
+		removed++
 
-	return nil
+		return nil
+	})
+
+	return removed, errors.Join(walkErr, errors.Join(errs...))
 }
 
-func (c *Cleaner) cleanupForPhpAnsSapi(phpVersion string, sapi sapiInfo) error {
-	if !c.isPhpCliExists(phpVersion, sapi) {
-		return nil
-	}
-
-	sessConfig, err := NewConfig(phpVersion, sapi.ConfDir)
+// Cleanup removes the session files that are older than the lifetime of their directory at now.
+func (c *Cleaner) Cleanup(ctx context.Context, now time.Time) error {
+	openFiles, err := c.openFiles()
 	if err != nil {
 		return err
 	}
 
-	if !sessConfig.IfSaveHandlerFilesAndPathNonEmpty() {
-		return nil
-	}
-
-	var result error
-	if err := c.touchOpenFiles(sapi.GetProcName(phpVersion), sessConfig.SavePath); err != nil {
-		result = multierr.Append(result, err)
-	}
-
-	if err := c.removeSessionFiles(sessConfig.SavePath, sessConfig.GcMaxLifetime); err != nil {
-		result = multierr.Append(result, err)
-	}
-
-	return result
-}
-
-func (c *Cleaner) Cleanup() error {
-	phpVersions, err := c.getPHPVersions()
-	if err != nil {
-		return err
-	}
-
-	var result error
-	for _, phpVersion := range phpVersions {
-		for _, sapi := range sapis {
-			if err := c.cleanupForPhpAnsSapi(phpVersion, sapi); err != nil {
-				result = multierr.Append(result, err)
-			}
+	var errs []error
+	for _, target := range c.targets {
+		removed, err := c.cleanTarget(ctx, target, openFiles, now)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("clean %s: %w", target.Dir, err))
 		}
+
+		c.log.Debug("session files removed", zap.String("dir", target.Dir), zap.Int("count", removed))
 	}
 
-	return result
+	return errors.Join(errs...)
 }
 
-func (c *Cleaner) CleanupInfinity(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Minute)
+// Run calls Cleanup at start and then after each interval. It blocks until ctx is done.
+func (c *Cleaner) Run(ctx context.Context) error {
+	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 
-	select {
-	case <-ctx.Done():
-		return
-	case <-ticker.C:
-		_ = c.Cleanup()
+	now := time.Now()
+	for {
+		if err := c.Cleanup(ctx, now); err != nil && ctx.Err() == nil {
+			c.log.Error("can't clean up session files", zap.Error(err))
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case now = <-ticker.C:
+		}
 	}
 }

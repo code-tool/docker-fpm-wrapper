@@ -152,6 +152,19 @@ func (w *wrapper) mustRequest(t *testing.T, port, script, query string) string {
 	return body
 }
 
+// fileExists tells if a regular file exists in the container.
+// It takes require.TestingT, so that a condition of require.EventuallyWithT can call it.
+func (w *wrapper) fileExists(ctx context.Context, t require.TestingT, path string) bool {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+
+	exitCode, _, err := w.ctr.Exec(ctx, []string{"test", "-f", path})
+	require.NoError(t, err)
+
+	return exitCode == 0
+}
+
 // waitForLine waits until the output of the wrapper has a line that is equal to line.
 func (w *wrapper) waitForLine(t *testing.T, line string) {
 	t.Helper()

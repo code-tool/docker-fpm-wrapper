@@ -42,6 +42,11 @@ func (p *Process) Start() error {
 	return p.cmd.Start()
 }
 
+// Pid returns the PID of the php-fpm master. Call it only after Start.
+func (p *Process) Pid() int {
+	return p.cmd.Process.Pid
+}
+
 func (p *Process) HandleSignal(signalCh chan os.Signal) {
 	for {
 		sig := <-signalCh

@@ -16,6 +16,7 @@ import (
 
 	"github.com/code-tool/docker-fpm-wrapper/internal/applog"
 	"github.com/code-tool/docker-fpm-wrapper/internal/breader"
+	"github.com/code-tool/docker-fpm-wrapper/internal/session"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
@@ -117,12 +118,31 @@ func main() {
 		}
 	}
 
+	fpmArgs := findFpmArgs()
 	fpmProcess := phpfpm.
-		NewProcess(log, cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, findFpmArgs()...)
+		NewProcess(log, cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, fpmArgs...)
+
+	var sessionCleaner *session.Cleaner
+	if cfg.SessionCleanupInterval > 0 {
+		sessionCleaner, err = createSessionCleaner(ctx, log.Named("session-cleaner"), fpmProcess,
+			cfg.FpmPath, fpmArgs, fpmConfig.Pools, cfg.SessionCleanupInterval)
+		if err != nil {
+			log.Error("Can't create session cleaner", zap.Error(err))
+			os.Exit(1)
+		}
+	}
 
 	if err = fpmProcess.Start(); err != nil {
 		log.Fatal("Can't start php-fpm", zap.Error(err))
 		os.Exit(1)
+	}
+
+	if sessionCleaner != nil {
+		go func() {
+			if err := sessionCleaner.Run(ctx); err != nil {
+				errCh <- err
+			}
+		}()
 	}
 
 	prometheus.MustRegister(

@@ -29,6 +29,8 @@ type Config struct {
 	MetricsPath string `mapstructure:"metrics-path"`
 
 	ShutdownDelay time.Duration `mapstructure:"shutdown-delay"`
+
+	SessionCleanupInterval time.Duration `mapstructure:"session-cleanup-interval"`
 }
 
 func parseCommandLineFlags() {
@@ -51,6 +53,8 @@ func parseCommandLineFlags() {
 	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
 
 	pflag.Duration("shutdown-delay", 500*time.Millisecond, "Delay before process shutdown")
+
+	pflag.Duration("session-cleanup-interval", 0, "Interval of the removal of expired session files, 0 to disable")
 
 	pflag.Parse()
 }

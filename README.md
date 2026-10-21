@@ -11,6 +11,7 @@ This project wraps around PHP-FPM, intercepting its logs and exposing Prometheus
 - **Logging Proxy:** Configure Unix pipe or socket for app log forwarding.
 - **Prometheus Monitoring:** Exposes application metrics to help monitor application performance.
 - **Graceful Shutdown:** Implements a delay mechanism to ensure smooth shutdowns in Kubernetes environments.
+- **Session Cleanup:** Removes expired PHP session files, as the `sessionclean` cron job of Debian does.
 
 ## Available Configuration Options
 
@@ -63,6 +64,23 @@ The following options can be configured via command-line flags or environment va
 - **--shutdown-delay**
     - *Description:* Delay before the process shutdown to allow graceful termination. The wrapper waits on SIGTERM and SIGQUIT, then sends SIGQUIT to php-fpm.
     - *Default:* `500ms`
+
+- **--session-cleanup-interval**
+    - *Description:* Interval of the removal of expired session files. Set to `0` to disable.
+    - *Default:* `0`
+
+## Session Cleanup
+
+Debian packages of PHP set `session.gc_probability = 0` and remove the expired session files with a cron job.
+A container usually has no cron. Set `--session-cleanup-interval` (for example, `30m`) to let the wrapper do this work:
+
+1. The wrapper reads the session directives from `php-fpm -i` and from the `php_value` and `php_admin_value` directives of each pool.
+2. It cleans up the `session.save_path` directories of the pools with `session.save_handler = files`, also the subdirectories of `N;/path`.
+3. It removes the `sess_*` files that are older than `session.gc_maxlifetime`. When two or more pools use one directory, the longest lifetime applies.
+4. It does not remove the session files that php-fpm has open. It updates their modification time.
+
+Do not enable the cleanup when the application sets `session.gc_maxlifetime` with `ini_set()` at run time.
+The wrapper cannot see this value and can remove live sessions.
 
 ## Development
 

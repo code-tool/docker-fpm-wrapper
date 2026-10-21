@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- `--session-cleanup-interval` removes the expired PHP session files, as the `sessionclean` cron job of Debian does. The cleanup is off by default.
+
 ### Changed
 
 - The minimum Go version is 1.27. Update all dependencies.
