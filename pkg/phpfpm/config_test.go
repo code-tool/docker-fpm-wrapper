@@ -24,11 +24,12 @@ func TestParse(t *testing.T) {
 	assert.Equal(t, []Pool{
 		{
 			Name:                     "nostatus",
-			Listen:                   "127.0.0.1:9001",
-			SlowlogPath:              "/var/log/nostatus.slow.log",
+			Listen:                   "/run/php-fpm/nostatus.sock",
+			StatusListen:             "/run/php-fpm/nostatus-status.sock",
+			SlowlogPath:              "/var/log/nostatus/nostatus.slow.log",
 			RequestSlowlogTimeout:    5,
 			RequestSlowlogTraceDepth: 64,
-			PhpValues:                map[string]string{},
+			PhpValues:                map[string]string{"session.save_path": "/var/lib/php/nostatus-sessions"},
 		},
 		{
 			Name:                     "www",

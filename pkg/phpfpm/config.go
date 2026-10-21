@@ -1,6 +1,7 @@
 package phpfpm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -31,9 +32,9 @@ type Pool struct {
 
 var phpValueKeyRegexp = regexp.MustCompile(`^php(_admin)?_(?:value|flag)\[(.+)]$`)
 
-// parsePhpValues returns the PHP directives of the pool section. An admin directive takes
-// precedence over a directive with the same name, as in php-fpm.
-func parsePhpValues(section *ini.Section) map[string]string {
+// parsePhpValues returns the PHP directives of the pool section with expand applied to the
+// values. An admin directive takes precedence over a directive with the same name, as in php-fpm.
+func parsePhpValues(section *ini.Section, expand func(string) string) map[string]string {
 	values := make(map[string]string)
 	isAdmin := make(map[string]bool)
 
@@ -48,7 +49,7 @@ func parsePhpValues(section *ini.Section) map[string]string {
 			continue
 		}
 
-		values[name] = key.String()
+		values[name] = expand(key.String())
 		isAdmin[name] = admin
 	}
 
@@ -64,39 +65,39 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 		return err
 	}
 
-	key, err := section.GetKey("listen")
-	if err != nil {
-		return err
+	// php-fpm replaces each $pool in each directive with the name of the pool.
+	expand := func(value string) string {
+		return strings.ReplaceAll(value, "$pool", poolName)
 	}
-	pool.Listen = key.String()
+	get := func(name string) (string, bool) {
+		key, err := section.GetKey(name)
+		if err != nil {
+			return "", false
+		}
 
-	key, err = section.GetKey("pm.status_path")
-	if err == nil {
-		pool.StatusPath = key.String()
-	}
-
-	key, err = section.GetKey("pm.status_listen")
-	if err == nil {
-		pool.StatusListen = key.String()
+		return expand(key.String()), true
 	}
 
-	key, err = section.GetKey("slowlog")
-	if err == nil {
-		pool.SlowlogPath = strings.Replace(key.String(), "$pool", poolName, 1)
+	listen, ok := get("listen")
+	if !ok {
+		return errors.New(`key "listen" not exists`)
 	}
+	pool.Listen = listen
 
-	key, err = section.GetKey("request_slowlog_timeout")
-	if err == nil {
-		pool.RequestSlowlogTimeout, _ = strconv.Atoi(key.String())
+	pool.StatusPath, _ = get("pm.status_path")
+	pool.StatusListen, _ = get("pm.status_listen")
+	pool.SlowlogPath, _ = get("slowlog")
+
+	if value, ok := get("request_slowlog_timeout"); ok {
+		pool.RequestSlowlogTimeout, _ = strconv.Atoi(value)
 	}
 
 	pool.RequestSlowlogTraceDepth = 64
-	key, err = section.GetKey("request_slowlog_trace_depth")
-	if err == nil {
-		pool.RequestSlowlogTraceDepth, _ = strconv.Atoi(key.String())
+	if value, ok := get("request_slowlog_trace_depth"); ok {
+		pool.RequestSlowlogTraceDepth, _ = strconv.Atoi(value)
 	}
 
-	pool.PhpValues = parsePhpValues(section)
+	pool.PhpValues = parsePhpValues(section, expand)
 
 	config.Pools = append(config.Pools, pool)
 	return nil
