@@ -14,7 +14,7 @@ func TestSlowlogProxy(t *testing.T) {
 
 	w := startWrapper(t)
 
-	assert.Equal(t, "ok", w.mustRequest(t, "slow.php", ""))
+	assert.Equal(t, "ok", w.mustRequest(t, wwwPort, "slow.php", ""))
 
 	entry := w.waitForEntry(t, func(e logEntry) bool {
 		return e.Message == "slowlog"

@@ -36,7 +36,7 @@ func TestGracefulShutdown(t *testing.T) {
 			var slowBody string
 			var slowErr error
 			wg.Go(func() {
-				slowBody, slowErr = w.request("sleep.php", "seconds=3")
+				slowBody, slowErr = w.request(wwwPort, "sleep.php", "seconds=3")
 			})
 
 			// The status request itself is one active process.
@@ -51,7 +51,7 @@ func TestGracefulShutdown(t *testing.T) {
 
 			// php-fpm accepts new requests during the shutdown delay.
 			time.Sleep(shutdownDelay / 3)
-			assert.Equal(t, "ok", w.mustRequest(t, "index.php", ""))
+			assert.Equal(t, "ok", w.mustRequest(t, wwwPort, "index.php", ""))
 
 			wg.Wait()
 			require.NoError(t, slowErr)

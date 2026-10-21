@@ -16,7 +16,7 @@ func TestMetrics(t *testing.T) {
 
 	const requests = 3
 	for range requests {
-		assert.Equal(t, "ok", w.mustRequest(t, "index.php", ""))
+		assert.Equal(t, "ok", w.mustRequest(t, wwwPort, "index.php", ""))
 	}
 
 	// The status requests of the wrapper also increase the counter.

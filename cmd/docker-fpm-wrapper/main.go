@@ -104,7 +104,7 @@ func main() {
 	}
 
 	if !cfg.FpmNoErrlogProxy && fpmConfig.ErrorLog != "syslog" {
-		if err := startErrLogProxy(ctx, log.Named("php-fpm"), fpmConfig.ErrorLog); err != nil {
+		if err := startErrLogProxy(ctx, log.Named("php-fpm"), syncStderr, fpmConfig.ErrorLog); err != nil {
 			log.Error("can't start err_log proxy", zap.String("path", fpmConfig.ErrorLog), zap.Error(err))
 			os.Exit(1)
 		}

@@ -57,7 +57,7 @@ func runContainer(t *testing.T, strategy wait.Strategy, logs testcontainers.LogC
 		testcontainers.WithFiles(containerFiles(t)...),
 		testcontainers.WithEntrypoint(wrapperPath),
 		testcontainers.WithCmd(args...),
-		testcontainers.WithExposedPorts(fcgiPort, metricsPort),
+		testcontainers.WithExposedPorts(wwwPort, rawPort, metricsPort),
 		testcontainers.WithConfigModifier(func(config *container.Config) {
 			config.User = "www-data"
 		}),
@@ -75,7 +75,7 @@ type wrapper struct {
 	ctr  *testcontainers.DockerContainer
 	logs *logCollector
 
-	fcgiAddr   string
+	fcgiAddrs  map[string]string // the host address of each FastCGI port
 	metricsURL string
 }
 
@@ -86,25 +86,32 @@ func startWrapper(t *testing.T, extraArgs ...string) *wrapper {
 
 	args := append([]string{"--fpm", fpmPath, "--fpm-config", fpmConfigPath, "--listen", ":8080"}, extraArgs...)
 	strategy := wait.ForAll(
-		wait.ForListeningPort(fcgiPort),
+		wait.ForListeningPort(wwwPort),
+		wait.ForListeningPort(rawPort),
 		wait.ForHTTP("/metrics").WithPort(metricsPort),
 	)
 
 	logs := newLogCollector()
 	ctr := runContainer(t, strategy, logs, args...)
 
-	fcgiAddr, err := ctr.PortEndpoint(t.Context(), fcgiPort, "")
-	require.NoError(t, err)
+	fcgiAddrs := make(map[string]string)
+	for _, port := range []string{wwwPort, rawPort} {
+		addr, err := ctr.PortEndpoint(t.Context(), port, "")
+		require.NoError(t, err)
+
+		fcgiAddrs[port] = addr
+	}
 
 	metricsEndpoint, err := ctr.PortEndpoint(t.Context(), metricsPort, "http")
 	require.NoError(t, err)
 
-	return &wrapper{ctr: ctr, logs: logs, fcgiAddr: fcgiAddr, metricsURL: metricsEndpoint + "/metrics"}
+	return &wrapper{ctr: ctr, logs: logs, fcgiAddrs: fcgiAddrs, metricsURL: metricsEndpoint + "/metrics"}
 }
 
-// request sends a FastCGI GET request for a script in scriptDir and returns the body of the response.
-func (w *wrapper) request(script, query string) (string, error) {
-	client, err := fcgiclient.DialTimeout("tcp", w.fcgiAddr, time.Second)
+// request sends a FastCGI GET request for a script in scriptDir to the pool on port and returns
+// the body of the response.
+func (w *wrapper) request(port, script, query string) (string, error) {
+	client, err := fcgiclient.DialTimeout("tcp", w.fcgiAddrs[port], time.Second)
 	if err != nil {
 		return "", fmt.Errorf("dial php-fpm: %w", err)
 	}
@@ -128,10 +135,10 @@ func (w *wrapper) request(script, query string) (string, error) {
 	return string(body), nil
 }
 
-func (w *wrapper) mustRequest(t *testing.T, script, query string) string {
+func (w *wrapper) mustRequest(t *testing.T, port, script, query string) string {
 	t.Helper()
 
-	body, err := w.request(script, query)
+	body, err := w.request(port, script, query)
 	require.NoError(t, err)
 
 	return body

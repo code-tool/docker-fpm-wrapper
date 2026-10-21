@@ -15,7 +15,7 @@ func TestAppLogProxy(t *testing.T) {
 
 	w := startWrapper(t)
 
-	assert.Equal(t, "ok", w.mustRequest(t, "applog.php", ""))
+	assert.Equal(t, "ok", w.mustRequest(t, wwwPort, "applog.php", ""))
 
 	tests := []struct {
 		name string

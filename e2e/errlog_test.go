@@ -15,7 +15,12 @@ func TestErrorLogProxy(t *testing.T) {
 
 	w := startWrapper(t)
 
-	assert.Equal(t, "ok", w.mustRequest(t, "stderr.php", ""))
+	// The "raw" pool writes a line in an unknown format to the error log before the "www" pool
+	// writes its line. The wrapper must write the raw line without a change and keep parsing.
+	assert.Equal(t, "ok", w.mustRequest(t, rawPort, "stderr.php", "message=raw+stderr+line"))
+	w.waitForLine(t, "raw stderr line")
+
+	assert.Equal(t, "ok", w.mustRequest(t, wwwPort, "stderr.php", ""))
 
 	tests := []struct {
 		name      string

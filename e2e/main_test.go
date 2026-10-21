@@ -25,7 +25,9 @@ const (
 	invalidFpmConfigPath = "/usr/local/etc/php-fpm-e2e-invalid.conf"
 	scriptDir            = "/var/www/html"
 
-	fcgiPort    = "9000/tcp"
+	// wwwPort and rawPort are the FastCGI ports of the pools "www" and "raw".
+	wwwPort     = "9000/tcp"
+	rawPort     = "9001/tcp"
 	metricsPort = "8080/tcp"
 
 	eventuallyTimeout = 10 * time.Second

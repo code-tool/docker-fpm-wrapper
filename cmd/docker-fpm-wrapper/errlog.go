@@ -10,7 +10,7 @@ import (
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
-func startErrLogProxy(ctx context.Context, log *zap.Logger, fPath string) error {
+func startErrLogProxy(ctx context.Context, log *zap.Logger, unparsedOut io.Writer, fPath string) error {
 	if fPath == "" {
 		return nil
 	}
@@ -35,7 +35,7 @@ func startErrLogProxy(ctx context.Context, log *zap.Logger, fPath string) error 
 		}
 	}()
 
-	logParser := phpfpm.NewErrLogParser()
+	logParser := phpfpm.NewErrLogParser(unparsedOut)
 	go func() {
 		if err := logParser.Parse(ctx, f, entryCh); err != nil {
 			log.Error("can't parse php-fpm errorlog entry", zap.Error(err))

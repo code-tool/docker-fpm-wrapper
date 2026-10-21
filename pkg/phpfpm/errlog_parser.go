@@ -19,21 +19,21 @@ type ErrLogEntry struct {
 }
 
 type ErrLogParser struct {
-	//
+	unparsedOut io.Writer
 }
 
-func NewErrLogParser() *ErrLogParser {
-	return &ErrLogParser{}
+// NewErrLogParser returns a parser of the php-fpm error log. The parser writes the lines that
+// are not in the php-fpm format to unparsedOut without a change. Such lines come, for example,
+// from a pool with "decorate_workers_output = no".
+func NewErrLogParser(unparsedOut io.Writer) *ErrLogParser {
+	return &ErrLogParser{unparsedOut: unparsedOut}
 }
 
 var errLogEntryRegexp = regexp.MustCompile(`^\[([^]]+)]\s+(ALERT|ERROR|WARNING|NOTICE|DEBUG):\s+([^\n]+)\n$`)
 
-func (p *ErrLogParser) ParseOne(r *bufio.Reader) (ErrLogEntry, error) {
+func (p *ErrLogParser) parseLine(buf []byte) (ErrLogEntry, error) {
+	var err error
 	result := ErrLogEntry{}
-	buf, err := line.ReadOne(r, false)
-	if err != nil {
-		return result, err
-	}
 
 	matches := errLogEntryRegexp.FindSubmatchIndex(buf)
 	if len(matches) == 0 {
@@ -51,13 +51,31 @@ func (p *ErrLogParser) ParseOne(r *bufio.Reader) (ErrLogEntry, error) {
 	return result, nil
 }
 
+func (p *ErrLogParser) ParseOne(r *bufio.Reader) (ErrLogEntry, error) {
+	buf, err := line.ReadOne(r, false)
+	if err != nil {
+		return ErrLogEntry{}, err
+	}
+
+	return p.parseLine(buf)
+}
+
 func (p *ErrLogParser) Parse(ctx context.Context, r io.Reader, out chan ErrLogEntry) error {
 	bufioReader := bufio.NewReader(r)
 
 	for {
-		entry, err := p.ParseOne(bufioReader)
+		buf, err := line.ReadOne(bufioReader, false)
 		if err != nil {
 			return err
+		}
+
+		entry, err := p.parseLine(buf)
+		if err != nil {
+			if _, err := p.unparsedOut.Write(buf); err != nil {
+				return fmt.Errorf("write unparsed line: %w", err)
+			}
+
+			continue
 		}
 
 		select {
