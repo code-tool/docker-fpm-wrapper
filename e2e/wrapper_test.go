@@ -100,20 +100,29 @@ func startWrapperAs(t *testing.T, user string, extraArgs ...string) *wrapper {
 	)
 
 	logs := newLogCollector()
-	ctr := runContainer(t, user, strategy, logs, args...)
+	w := &wrapper{ctr: runContainer(t, user, strategy, logs, args...), logs: logs}
+	w.readEndpoints(t)
 
-	fcgiAddrs := make(map[string]string)
+	return w
+}
+
+// readEndpoints reads the host addresses of the ports. Call it again after a restart of the
+// container: Docker can map the ports to other host ports.
+func (w *wrapper) readEndpoints(t *testing.T) {
+	t.Helper()
+
+	w.fcgiAddrs = make(map[string]string)
 	for _, port := range []string{wwwPort, rawPort} {
-		addr, err := ctr.PortEndpoint(t.Context(), port, "")
+		addr, err := w.ctr.PortEndpoint(t.Context(), port, "")
 		require.NoError(t, err)
 
-		fcgiAddrs[port] = addr
+		w.fcgiAddrs[port] = addr
 	}
 
-	metricsEndpoint, err := ctr.PortEndpoint(t.Context(), metricsPort, "http")
+	metricsEndpoint, err := w.ctr.PortEndpoint(t.Context(), metricsPort, "http")
 	require.NoError(t, err)
 
-	return &wrapper{ctr: ctr, logs: logs, fcgiAddrs: fcgiAddrs, metricsURL: metricsEndpoint + "/metrics"}
+	w.metricsURL = metricsEndpoint + "/metrics"
 }
 
 // request sends a FastCGI GET request for a script in scriptDir to the pool on port and returns

@@ -18,6 +18,7 @@ type Config struct {
 
 	FpmPath       string `short:"f" long:"fpm" env:"FPM" required:"true" description:"Path to php-fpm"`
 	FpmConfigPath string `short:"c" long:"fpm-config" env:"FPM_CONFIG" default:"/etc/php/php-fpm.conf" description:"Path to the php-fpm config file"`
+	RunDir        string `long:"run-dir" env:"RUN_DIR" default:"/tmp/docker-fpm-wrapper" description:"Directory for the generated php-fpm config and the log FIFOs"`
 
 	FpmNoErrlogProxy  bool `long:"fpm-no-errlog" env:"FPM_NO_ERRLOG" description:"Disable php-fpm errlog parsing and proxy"`
 	FpmNoSlowlogProxy bool `long:"fpm-no-slowlog" env:"FPM_NO_SLOWLOG" description:"Disable php-fpm slowlog parsing and proxy"`

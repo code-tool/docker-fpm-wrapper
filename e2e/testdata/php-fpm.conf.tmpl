@@ -1,9 +1,11 @@
 ; The php-fpm config for the e2e tests. TestMain renders it with text/template for the PHP
 ; version of the image: decorate_workers_output is PHP 7.3+.
-; The wrapper replaces error_log and slowlog with FIFOs and parses them.
+; The wrapper moves error_log and the slowlogs to its FIFOs and parses them.
 
 [global]
-error_log = /tmp/php-fpm.log
+; www-data cannot write to /var/log. The tests run as www-data, so they fail if the wrapper
+; does not move error_log.
+error_log = /var/log/php-fpm-e2e.log
 log_level = notice
 ; Let the children finish the current request after SIGQUIT.
 process_control_timeout = 10s

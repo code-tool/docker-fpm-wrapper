@@ -42,12 +42,16 @@ docker-fpm-wrapper -f /usr/local/sbin/php-fpm -- -d memory_limit=256M
     - *Description:* Path to the PHP-FPM configuration file.
     - *Default:* `/etc/php/php-fpm.conf`
 
+- **--run-dir**
+    - *Description:* Directory for the generated php-fpm config and the log FIFOs. The user of the wrapper must have write access to it.
+    - *Default:* `/tmp/docker-fpm-wrapper`
+
 - **--fpm-no-errlog**
-    - *Description:* Disable php-fpm error log parsing and proxy.
+    - *Description:* Disable php-fpm error log parsing and proxy. php-fpm then uses the `error_log` of its config.
     - *Default:* `false`
 
 - **--fpm-no-slowlog**
-    - *Description:* Disable php-fpm slow log parsing and proxy.
+    - *Description:* Disable php-fpm slow log parsing and proxy. php-fpm then uses the `slowlog` of each pool.
     - *Default:* `false`
 
 - **--wrapper-pipe, -p**
@@ -77,6 +81,22 @@ docker-fpm-wrapper -f /usr/local/sbin/php-fpm -- -d memory_limit=256M
 - **--session-cleanup-interval**
     - *Description:* Interval of the removal of expired session files. Set to `0` to disable.
     - *Default:* `0`
+
+## How the Wrapper Runs php-fpm
+
+The wrapper does not parse the php-fpm config itself. At start, it does these steps:
+
+1. It runs `php-fpm -tt` and reads the config that php-fpm shows: the pools after all includes, `$pool` variables, and defaults.
+2. It writes an overlay config to `--run-dir`. The overlay includes the config from `--fpm-config` and moves `error_log` and the `slowlog` of each pool to FIFOs in `--run-dir`.
+3. It starts php-fpm with the overlay config and parses the FIFOs.
+
+The wrapper does not change the files of the config, and php-fpm does not need write access to the directories of `error_log` and `slowlog`.
+`error_log = /proc/self/fd/2` of the official Docker images and `error_log = syslog` also go through the proxy.
+Use `--fpm-no-errlog` or `--fpm-no-slowlog` to keep the paths of the config.
+
+`php-fpm -tt` opens the `slowlog` of each pool with `request_slowlog_timeout`. The user of the wrapper must have write access to these paths.
+
+The wrapper works with php-fpm of PHP 5.6 and later. It does not need root.
 
 ## Session Cleanup
 

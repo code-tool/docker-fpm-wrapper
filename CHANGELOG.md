@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 ### Changed
 
 - The minimum Go version is 1.27. Update all dependencies.
+- The wrapper reads the php-fpm config with `php-fpm -tt` and runs php-fpm with an overlay config in `--run-dir`. The overlay moves `error_log` and the slowlogs to FIFOs in `--run-dir`. Before, the wrapper parsed the config itself and replaced the files at `error_log` and `slowlog` with FIFOs. These problems are gone:
+  - The wrapper did not see `error_log` in an included file, so the error log of the official Docker images was not proxied.
+  - The wrapper did not find a relative `include`, for example `include=etc/php-fpm.d/*.conf` of the PHP 7.4 images.
+  - Without root, the wrapper could not create a FIFO for an `error_log` in `/var/log`.
+- `error_log = syslog` also goes through the proxy. Use `--fpm-no-errlog` to keep it.
+- The slowlog parser uses the `request_slowlog_trace_depth` of php-fpm (default 20). Before, the default was 64.
+- When php-fpm rejects the config at start, the wrapper exits with the exit code of php-fpm, for example 78.
 - Parse the flags and the environment variables with `go-flags` instead of `pflag` and `viper-lite`. The names of the flags and the environment variables do not change. These behaviors change:
   - An empty environment variable sets an empty value. For example, `WRAPPER_PIPE=` disables the pipe. Before, the wrapper ignored empty environment variables.
   - An argument before `--` that is not a flag of the wrapper stops the wrapper at start. Before, the wrapper ignored it. The wrapper passes the arguments after `--` to php-fpm, as before.

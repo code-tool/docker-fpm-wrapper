@@ -20,6 +20,7 @@ func TestCreateConfig(t *testing.T) {
 		LogEncoder:     "auto",
 		FpmPath:        "/usr/sbin/php-fpm",
 		FpmConfigPath:  "/etc/php/php-fpm.conf",
+		RunDir:         "/tmp/docker-fpm-wrapper",
 		WrapperPipe:    "/tmp/fpm-wrapper-pipe",
 		WrapperSocket:  "/tmp/fpm-wrapper.sock",
 		LineBufferSize: 16 * 1024,
@@ -49,7 +50,7 @@ func TestCreateConfig(t *testing.T) {
 		{
 			name: "flags",
 			args: []string{
-				"--fpm", "/usr/sbin/php-fpm", "-c", "/etc/fpm.conf",
+				"--fpm", "/usr/sbin/php-fpm", "-c", "/etc/fpm.conf", "--run-dir", "/run/wrapper",
 				"--log-level", "-1", "--log-encoder", "json",
 				"--fpm-no-errlog", "--fpm-no-slowlog",
 				"-p", "", "-s", "null", "--line-buffer-size", "1024",
@@ -61,6 +62,7 @@ func TestCreateConfig(t *testing.T) {
 				LogEncoder:             "json",
 				FpmPath:                "/usr/sbin/php-fpm",
 				FpmConfigPath:          "/etc/fpm.conf",
+				RunDir:                 "/run/wrapper",
 				FpmNoErrlogProxy:       true,
 				FpmNoSlowlogProxy:      true,
 				WrapperPipe:            "",
