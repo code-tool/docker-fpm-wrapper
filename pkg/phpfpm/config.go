@@ -25,6 +25,34 @@ type Pool struct {
 	SlowlogPath              string
 	RequestSlowlogTimeout    int
 	RequestSlowlogTraceDepth int
+	// PhpValues holds the php_value, php_flag, php_admin_value, and php_admin_flag directives.
+	PhpValues map[string]string
+}
+
+var phpValueKeyRegexp = regexp.MustCompile(`^php(_admin)?_(?:value|flag)\[(.+)]$`)
+
+// parsePhpValues returns the PHP directives of the pool section. An admin directive takes
+// precedence over a directive with the same name, as in php-fpm.
+func parsePhpValues(section *ini.Section) map[string]string {
+	values := make(map[string]string)
+	isAdmin := make(map[string]bool)
+
+	for _, key := range section.Keys() {
+		matches := phpValueKeyRegexp.FindStringSubmatch(key.Name())
+		if matches == nil {
+			continue
+		}
+
+		name, admin := matches[2], matches[1] != ""
+		if isAdmin[name] && !admin {
+			continue
+		}
+
+		values[name] = key.String()
+		isAdmin[name] = admin
+	}
+
+	return values
 }
 
 func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
@@ -68,13 +96,16 @@ func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
 		pool.RequestSlowlogTraceDepth, _ = strconv.Atoi(key.String())
 	}
 
+	pool.PhpValues = parsePhpValues(section)
+
 	config.Pools = append(config.Pools, pool)
 	return nil
 }
 
 func ParseConfig(fpmConfigPath string) (Config, error) {
 	c := Config{}
-	cfg := ini.Empty()
+	// A ";" after a space starts a comment. A ";" in a value stays, for example "2;/var/lib/php/sessions".
+	cfg := ini.Empty(ini.LoadOptions{SpaceBeforeInlineComment: true})
 	err := cfg.Append(fpmConfigPath)
 	if err != nil {
 		return c, err
