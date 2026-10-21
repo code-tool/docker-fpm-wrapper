@@ -145,16 +145,16 @@ func ParseConfig(fpmConfigPath string) (Config, error) {
 		}
 	}
 
+	// php-fpm takes each section except [global] as a pool.
 	for _, section := range cfg.Sections() {
-		_, err = section.GetKey("pm.status_path")
-		if err != nil {
+		if section.Name() == ini.DefaultSection || section.Name() == "global" {
 			continue
 		}
 
 		if err := fillPull(&c, cfg, section.Name()); err != nil {
-			return c, err
+			return c, fmt.Errorf("pool %s: %w", section.Name(), err)
 		}
 	}
 
-	return c, err
+	return c, nil
 }
