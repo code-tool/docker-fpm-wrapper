@@ -19,7 +19,7 @@ func TestSlowlogParser(t *testing.T) {
 		t.Fail()
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	slp := NewSlowlogParser(0)
 	out := make(chan SlowlogEntry)

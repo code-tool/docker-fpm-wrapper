@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
-	"strconv"
 	"syscall"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -16,51 +18,25 @@ import (
 
 	"github.com/code-tool/docker-fpm-wrapper/internal/applog"
 	"github.com/code-tool/docker-fpm-wrapper/internal/breader"
+	"github.com/code-tool/docker-fpm-wrapper/internal/session"
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
-func findFpmArgs() []string {
-	doubleDashIndex := -1
-
-	for i := range os.Args {
-		if os.Args[i] == "--" {
-			doubleDashIndex = i
-			break
-		}
-	}
-	if doubleDashIndex == -1 || doubleDashIndex+1 == len(os.Args) {
-		return nil
-	}
-
-	return os.Args[doubleDashIndex+1:]
-}
-
 func main() {
-	cfg, err := createConfig()
+	cfg, fpmArgs, err := createConfig(os.Args[1:])
+	if flagsErr, ok := errors.AsType[*flags.Error](err); ok && flagsErr.Type == flags.ErrHelp {
+		fmt.Println(err)
+		os.Exit(0)
+	}
 	if err != nil {
-		fmt.Printf("Can't create app config: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Can't create app config: %v\n", err)
 		os.Exit(1)
 	}
 
 	syncStderr := zapcore.Lock(os.Stderr)
-	// cfg.LogLevel can be either int or string
-	// example: it can be -1 or debug
-	// try to parse it by string
-	logLever, err := zapcore.ParseLevel(cfg.LogLevel)
+	log, err := createLogger(cfg.LogEncoder, cfg.LogLevel.Level(), syncStderr)
 	if err != nil {
-		// so, the string is not correct, try to parse it as int
-		logLeverRaw, err := strconv.Atoi(cfg.LogLevel)
-		if err != nil {
-			fmt.Printf("Can't parse log level '%v': %v\n", cfg.LogLevel, err)
-			os.Exit(1)
-		}
-		logLever = zapcore.Level(logLeverRaw)
-	}
-
-	log, err := createLogger(cfg.LogEncoder, logLever, syncStderr)
-
-	if cfg.FpmPath == "" {
-		log.Error("php-fpm path not set")
+		_, _ = fmt.Fprintf(os.Stderr, "Can't create logger: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -84,7 +60,7 @@ func main() {
 	if cfg.WrapperPipe != "" {
 		env = append(env, fmt.Sprintf("FPM_WRAPPER_PIPE=%s", cfg.WrapperPipe))
 
-		wrapperPipe, err := createFIFOByPathCtx(ctx, cfg.WrapperPipe)
+		wrapperPipe, err := createFIFOByPathCtx(ctx, cfg.WrapperPipe, wrapperPipePerm)
 		if err != nil {
 			log.Error("can't create pipe", zap.Error(err), zap.String("path", cfg.WrapperPipe))
 			os.Exit(1)
@@ -93,36 +69,56 @@ func main() {
 		go applog.NewPipeProxy(log.Named("pipe-proxy"), syncStderr).Proxy(wrapperPipe)
 	}
 
-	fpmConfig, err := phpfpm.ParseConfig(cfg.FpmConfigPath)
+	fpm, err := prepareFpmConfig(ctx, cfg.FpmPath, cfg.FpmConfigPath, fpmArgs, cfg.RunDir,
+		!cfg.FpmNoErrlogProxy, !cfg.FpmNoSlowlogProxy)
 	if err != nil {
-		log.Fatal("Can't parse fpm config", zap.Error(err))
+		log.Error("Can't read php-fpm config", zap.Error(err))
+
+		// Exit with the code of php-fpm, for example 78 for an invalid config.
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() > 0 {
+			os.Exit(exitErr.ExitCode())
+		}
 		os.Exit(1)
 	}
 
-	if false == cfg.FpmNoErrlogProxy && fpmConfig.ErrorLog != "syslog" {
-		if err := startErrLogProxy(ctx, log.Named("php-fpm"), fpmConfig.ErrorLog); err != nil {
-			log.Error("can't start err_log proxy", zap.String("path", fpmConfig.ErrorLog), zap.Error(err))
-			os.Exit(1)
-		}
+	if err := startErrLogProxy(ctx, log.Named("php-fpm"), syncStderr, fpm.errorLogPath); err != nil {
+		log.Error("can't start err_log proxy", zap.String("path", fpm.errorLogPath), zap.Error(err))
+		os.Exit(1)
 	}
 
-	if false == cfg.FpmNoSlowlogProxy {
-		if err = startSlowlogProxies(ctx, log.Named("php-fpm"), fpmConfig.Pools); err != nil {
-			log.Error("Can't start slowlog proxies", zap.Error(err))
-			os.Exit(1)
-		}
+	if err = startSlowlogProxies(ctx, log.Named("php-fpm"), fpm.pools); err != nil {
+		log.Error("Can't start slowlog proxies", zap.Error(err))
+		os.Exit(1)
 	}
 
 	fpmProcess := phpfpm.
-		NewProcess(log, cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, findFpmArgs()...)
+		NewProcess(log, cfg.FpmPath, fpm.configPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, fpmArgs...)
+
+	var sessionCleaner *session.Cleaner
+	if cfg.SessionCleanupInterval > 0 {
+		sessionCleaner, err = createSessionCleaner(ctx, log.Named("session-cleaner"), fpmProcess,
+			cfg.FpmPath, fpmArgs, fpm.pools, cfg.SessionCleanupInterval)
+		if err != nil {
+			log.Error("Can't create session cleaner", zap.Error(err))
+			os.Exit(1)
+		}
+	}
 
 	if err = fpmProcess.Start(); err != nil {
 		log.Fatal("Can't start php-fpm", zap.Error(err))
 		os.Exit(1)
 	}
 
+	if sessionCleaner != nil {
+		go func() {
+			if err := sessionCleaner.Run(ctx); err != nil {
+				errCh <- err
+			}
+		}()
+	}
+
 	prometheus.MustRegister(
-		phpfpm.NewPromCollector(log.Named("prom-collector"), phpfpm.NewPromMetrics(), fpmConfig.Pools),
+		phpfpm.NewPromCollector(log.Named("prom-collector"), phpfpm.NewPromMetrics(), fpm.pools),
 	)
 
 	signalCh := make(chan os.Signal, 1)

@@ -11,7 +11,7 @@ import (
 )
 
 func startSlowlogProxyForPool(ctx context.Context, log *zap.Logger, pool phpfpm.Pool, out chan phpfpm.SlowlogEntry) error {
-	fifoF, err := createFIFOByPathCtx(ctx, pool.SlowlogPath)
+	fifoF, err := createFIFOByPathCtx(ctx, pool.SlowlogPath, fpmLogPipePerm)
 	if err != nil {
 		return err
 	}

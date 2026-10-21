@@ -1,20 +1,27 @@
 package phpfpm
 
 import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
-	"os"
-	"path"
+	"io"
+	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
-
-	"gopkg.in/ini.v1"
+	"time"
 )
 
+// defaultSlowlogTraceDepth is the trace depth of php-fpm. PHP before 7.2 has no
+// request_slowlog_trace_depth and always uses this depth.
+const defaultSlowlogTraceDepth = 20
+
+// Config is the config of php-fpm, as php-fpm reads it.
 type Config struct {
-	Include  string
-	ErrorLog string
-	Pools    []Pool
+	Pools []Pool
 }
 
 type Pool struct {
@@ -23,107 +30,168 @@ type Pool struct {
 	StatusPath               string
 	StatusListen             string
 	SlowlogPath              string
-	RequestSlowlogTimeout    int
+	RequestSlowlogTimeout    time.Duration
 	RequestSlowlogTraceDepth int
+	// PhpValues holds the php_value and php_admin_value directives. php-fpm shows a php_flag
+	// directive as php_value.
+	PhpValues map[string]string
 }
 
-func fillPull(config *Config, iniConfig *ini.File, poolName string) error {
-	pool := Pool{}
-	pool.Name = poolName
+var (
+	dumpLineRegexp    = regexp.MustCompile(`^\[[^]]*] NOTICE: (.*)$`)
+	dumpSectionRegexp = regexp.MustCompile(`^\[(.+)]$`)
+	phpValueKeyRegexp = regexp.MustCompile(`^php(_admin)?_value\[(.+)]$`)
+)
 
-	section, err := iniConfig.GetSection(poolName)
-	if err != nil {
-		return err
+// newPool makes a pool from the directives of its section in the dump.
+func newPool(name string, directives map[string]string, adminValues map[string]bool) (Pool, error) {
+	pool := Pool{
+		Name:                     name,
+		Listen:                   directives["listen"],
+		StatusPath:               directives["pm.status_path"],
+		StatusListen:             directives["pm.status_listen"],
+		SlowlogPath:              directives["slowlog"],
+		RequestSlowlogTraceDepth: defaultSlowlogTraceDepth,
+		PhpValues:                make(map[string]string),
 	}
 
-	key, err := section.GetKey("listen")
-	if err != nil {
-		return err
-	}
-	pool.Listen = key.String()
-
-	key, err = section.GetKey("pm.status_path")
-	if err == nil {
-		pool.StatusPath = key.String()
-	}
-
-	key, err = section.GetKey("pm.status_listen")
-	if err == nil {
-		pool.StatusListen = key.String()
-	}
-
-	key, err = section.GetKey("slowlog")
-	if err == nil {
-		pool.SlowlogPath = strings.Replace(key.String(), "$pool", poolName, 1)
-	}
-
-	key, err = section.GetKey("request_slowlog_timeout")
-	if err == nil {
-		pool.RequestSlowlogTimeout, _ = strconv.Atoi(key.String())
-	}
-
-	pool.RequestSlowlogTraceDepth = 64
-	key, err = section.GetKey("request_slowlog_trace_depth")
-	if err == nil {
-		pool.RequestSlowlogTraceDepth, _ = strconv.Atoi(key.String())
-	}
-
-	config.Pools = append(config.Pools, pool)
-	return nil
-}
-
-func ParseConfig(fpmConfigPath string) (Config, error) {
-	c := Config{}
-	cfg := ini.Empty()
-	err := cfg.Append(fpmConfigPath)
-	if err != nil {
-		return c, err
-	}
-
-	global, err := cfg.GetSection("global")
-	if err != nil {
-		return c, err
-	}
-
-	if key, err := global.GetKey("error_log"); err == nil {
-		c.ErrorLog = key.String()
-	}
-
-	if include, err := global.GetKey("include"); err == nil {
-		c.Include = include.Value()
-
-		file := regexp.QuoteMeta(path.Base(c.Include))
-		file = strings.Replace(file, regexp.QuoteMeta("*"), "(.+)", 1)
-		file = fmt.Sprintf("^%s$", file)
-		fileRx := regexp.MustCompile(file)
-
-		fmpPoolsDir := path.Dir(c.Include)
-		osFileInfo, err := os.ReadDir(fmpPoolsDir)
+	if value := directives["request_slowlog_timeout"]; value != "" {
+		timeout, err := time.ParseDuration(value)
 		if err != nil {
-			return c, err
+			return Pool{}, fmt.Errorf("pool %s: parse request_slowlog_timeout: %w", name, err)
 		}
-
-		for _, info := range osFileInfo {
-			if info.IsDir() || !fileRx.MatchString(info.Name()) {
-				continue
-			}
-
-			if err = cfg.Append(fmt.Sprintf("%s/%s", fmpPoolsDir, info.Name())); err != nil {
-				return c, err
-			}
-		}
+		pool.RequestSlowlogTimeout = timeout
 	}
 
-	for _, section := range cfg.Sections() {
-		_, err = section.GetKey("pm.status_path")
+	if value := directives["request_slowlog_trace_depth"]; value != "" {
+		depth, err := strconv.Atoi(value)
 		if err != nil {
+			return Pool{}, fmt.Errorf("pool %s: parse request_slowlog_trace_depth: %w", name, err)
+		}
+		pool.RequestSlowlogTraceDepth = depth
+	}
+
+	for key, value := range directives {
+		matches := phpValueKeyRegexp.FindStringSubmatch(key)
+		if matches == nil {
 			continue
 		}
 
-		if err := fillPull(&c, cfg, section.Name()); err != nil {
-			return c, err
+		// An admin directive takes precedence, as in php-fpm.
+		phpName, admin := matches[2], matches[1] != ""
+		if !admin && adminValues[phpName] {
+			continue
+		}
+		pool.PhpValues[phpName] = value
+	}
+
+	return pool, nil
+}
+
+// ParseDump reads the output of "php-fpm -tt": the config after php-fpm applied the includes,
+// the $pool variables, and the defaults. The global section is "[global]", or "[General]" in
+// PHP 5.6. Each other section is a pool.
+func ParseDump(r io.Reader) (Config, error) {
+	var (
+		config      Config
+		section     string
+		directives  map[string]string
+		adminValues map[string]bool
+	)
+
+	addPool := func() error {
+		if section == "" || section == "global" || section == "General" {
+			return nil
+		}
+
+		pool, err := newPool(section, directives, adminValues)
+		if err != nil {
+			return err
+		}
+		config.Pools = append(config.Pools, pool)
+
+		return nil
+	}
+
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		matches := dumpLineRegexp.FindStringSubmatch(scanner.Text())
+		if matches == nil {
+			continue
+		}
+		content := matches[1]
+
+		if sectionMatches := dumpSectionRegexp.FindStringSubmatch(content); sectionMatches != nil {
+			if err := addPool(); err != nil {
+				return Config{}, err
+			}
+
+			section = sectionMatches[1]
+			directives = make(map[string]string)
+			adminValues = make(map[string]bool)
+
+			continue
+		}
+
+		directive, found := strings.CutPrefix(content, "\t")
+		if !found || section == "" {
+			continue
+		}
+
+		key, value, found := strings.Cut(directive, " = ")
+		if !found {
+			continue
+		}
+		if value == "undefined" {
+			value = ""
+		}
+
+		directives[key] = value
+		if matches := phpValueKeyRegexp.FindStringSubmatch(key); matches != nil && matches[1] != "" {
+			adminValues[matches[2]] = true
 		}
 	}
 
-	return c, err
+	if err := scanner.Err(); err != nil {
+		return Config{}, fmt.Errorf("read php-fpm config dump: %w", err)
+	}
+
+	if err := addPool(); err != nil {
+		return Config{}, err
+	}
+
+	if len(config.Pools) == 0 {
+		return Config{}, errors.New("php-fpm config dump has no pools")
+	}
+
+	return config, nil
+}
+
+// ReadConfig runs "php-fpm -tt" for the config and returns the config that php-fpm reads.
+// The extra arguments of php-fpm go before the other arguments, as in Process.
+//
+// "php-fpm -tt" opens error_log and the slowlog files. It blocks on a FIFO that has no reader,
+// so ctx must have a deadline.
+func ReadConfig(ctx context.Context, fpmPath, fpmConfigPath string, fpmArgs []string) (Config, error) {
+	args := append(slices.Clone(fpmArgs), "--fpm-config", fpmConfigPath, "-tt")
+	cmd := exec.CommandContext(ctx, fpmPath, args...)
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	if err := cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return Config{}, fmt.Errorf(
+				"run php-fpm -tt: no exit before the deadline: a FIFO without a reader at error_log or slowlog can block php-fpm: %w", err)
+		}
+
+		if output := bytes.TrimSpace(out.Bytes()); len(output) > 0 {
+			return Config{}, fmt.Errorf("run php-fpm -tt: %w: %s", err, output)
+		}
+
+		return Config{}, fmt.Errorf("run php-fpm -tt: %w", err)
+	}
+
+	return ParseDump(&out)
 }

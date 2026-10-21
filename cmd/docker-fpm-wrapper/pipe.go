@@ -8,13 +8,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func createFIFOByPath(fPath string) (*os.File, error) {
+const (
+	// The php-fpm workers write to the wrapper pipe. They can run as a different user than the wrapper.
+	wrapperPipePerm os.FileMode = 0o666
+	// Only the php-fpm master writes to the error log and the slowlog.
+	fpmLogPipePerm os.FileMode = 0o644
+)
+
+// createFIFOByPath creates a FIFO with perm. The umask of the process does not change perm.
+func createFIFOByPath(fPath string, perm os.FileMode) (*os.File, error) {
 	if err := os.Remove(fPath); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("can't remove file: %w", err)
 	}
 
-	if err := unix.Mkfifo(fPath, 0666); err != nil {
+	if err := unix.Mkfifo(fPath, uint32(perm)); err != nil {
 		return nil, fmt.Errorf("can't create linux pipe: %w", err)
+	}
+
+	if err := os.Chmod(fPath, perm); err != nil {
+		return nil, fmt.Errorf("can't change pipe mode: %w", err)
 	}
 
 	fifoF, err := os.OpenFile(fPath, os.O_RDWR, os.ModeNamedPipe)
@@ -25,8 +37,8 @@ func createFIFOByPath(fPath string) (*os.File, error) {
 	return fifoF, nil
 }
 
-func createFIFOByPathCtx(ctx context.Context, fPath string) (*os.File, error) {
-	f, err := createFIFOByPath(fPath)
+func createFIFOByPathCtx(ctx context.Context, fPath string, perm os.FileMode) (*os.File, error) {
+	f, err := createFIFOByPath(fPath, perm)
 	if err != nil {
 		return nil, err
 	}

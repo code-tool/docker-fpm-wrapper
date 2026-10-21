@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --build-tags e2e
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+
+  e2e:
+    name: E2E tests (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          # PHP 5.6 and 7.4 are EOL, but the wrapper must support them.
+          - php:5.6-fpm-alpine
+          - php:7.4-fpm-alpine
+          - php:8.2-fpm-alpine
+          - php:8.3-fpm-alpine
+          - php:8.4-fpm-alpine
+          - php:8.5-fpm-alpine
+          - php:8.5-fpm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go test -race -count=1 -tags e2e ./e2e/...
+        env:
+          E2E_PHP_IMAGE: ${{ matrix.image }}
