@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -27,7 +28,7 @@ func readLogs(t *testing.T, ctr *testcontainers.DockerContainer) []string {
 	return strings.Split(string(data), "\n")
 }
 
-// TestStartFailure examines the exit code and the log of the wrapper when it cannot start php-fpm.
+// TestStartFailure examines the exit code and the output of the wrapper when it cannot start php-fpm.
 func TestStartFailure(t *testing.T) {
 	t.Parallel()
 
@@ -35,25 +36,25 @@ func TestStartFailure(t *testing.T) {
 		name         string
 		args         []string
 		wantExitCode int
-		wantMessage  string
+		wantOutput   string // a part of a line of the output
 	}{
 		{
 			name:         "fpm path is not set",
 			args:         []string{"--fpm-config", fpmConfigPath},
 			wantExitCode: 1,
-			wantMessage:  "php-fpm path not set",
+			wantOutput:   "the required flag `-f, --fpm' was not specified",
 		},
 		{
 			name:         "fpm config does not exist",
 			args:         []string{"--fpm", fpmPath, "--fpm-config", "/nonexistent/php-fpm.conf"},
 			wantExitCode: 1,
-			wantMessage:  "Can't parse fpm config",
+			wantOutput:   `"message":"Can't parse fpm config"`,
 		},
 		{
 			name:         "fpm binary does not exist",
 			args:         []string{"--fpm", "/nonexistent/php-fpm", "--fpm-config", fpmConfigPath},
 			wantExitCode: 1,
-			wantMessage:  "Can't start php-fpm",
+			wantOutput:   `"message":"Can't start php-fpm"`,
 		},
 		{
 			// The wrapper exits with the exit code of php-fpm: 78 is EX_CONFIG.
@@ -72,15 +73,14 @@ func TestStartFailure(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantExitCode, state.ExitCode)
 
-			if tt.wantMessage == "" {
+			if tt.wantOutput == "" {
 				return
 			}
 
-			messages := make([]string, 0)
-			for _, entry := range parseEntries(readLogs(t, ctr)) {
-				messages = append(messages, entry.Message)
-			}
-			assert.Contains(t, messages, tt.wantMessage)
+			lines := readLogs(t, ctr)
+			assert.True(t, slices.ContainsFunc(lines, func(line string) bool {
+				return strings.Contains(line, tt.wantOutput)
+			}), "no line with %q in the output:\n%s", tt.wantOutput, strings.Join(lines, "\n"))
 		})
 	}
 }

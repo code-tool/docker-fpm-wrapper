@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -20,52 +21,21 @@ import (
 	"github.com/code-tool/docker-fpm-wrapper/pkg/phpfpm"
 )
 
-func findFpmArgs() []string {
-	doubleDashIndex := -1
-
-	for i := range os.Args {
-		if os.Args[i] == "--" {
-			doubleDashIndex = i
-			break
-		}
-	}
-	if doubleDashIndex == -1 || doubleDashIndex+1 == len(os.Args) {
-		return nil
-	}
-
-	return os.Args[doubleDashIndex+1:]
-}
-
 func main() {
-	cfg, err := createConfig()
+	cfg, fpmArgs, err := createConfig(os.Args[1:])
+	if flagsErr, ok := errors.AsType[*flags.Error](err); ok && flagsErr.Type == flags.ErrHelp {
+		fmt.Println(err)
+		os.Exit(0)
+	}
 	if err != nil {
-		fmt.Printf("Can't create app config: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Can't create app config: %v\n", err)
 		os.Exit(1)
 	}
 
 	syncStderr := zapcore.Lock(os.Stderr)
-	// cfg.LogLevel can be either int or string
-	// example: it can be -1 or debug
-	// try to parse it by string
-	logLever, err := zapcore.ParseLevel(cfg.LogLevel)
+	log, err := createLogger(cfg.LogEncoder, cfg.LogLevel.Level(), syncStderr)
 	if err != nil {
-		// so, the string is not correct, try to parse it as int
-		logLeverRaw, err := strconv.Atoi(cfg.LogLevel)
-		if err != nil {
-			fmt.Printf("Can't parse log level '%v': %v\n", cfg.LogLevel, err)
-			os.Exit(1)
-		}
-		logLever = zapcore.Level(logLeverRaw)
-	}
-
-	log, err := createLogger(cfg.LogEncoder, logLever, syncStderr)
-	if err != nil {
-		fmt.Printf("Can't create logger: %v\n", err)
-		os.Exit(1)
-	}
-
-	if cfg.FpmPath == "" {
-		log.Error("php-fpm path not set")
+		_, _ = fmt.Fprintf(os.Stderr, "Can't create logger: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -118,7 +88,6 @@ func main() {
 		}
 	}
 
-	fpmArgs := findFpmArgs()
 	fpmProcess := phpfpm.
 		NewProcess(log, cfg.FpmPath, cfg.FpmConfigPath, os.Stdout, syncStderr, cfg.ShutdownDelay, env, fpmArgs...)
 

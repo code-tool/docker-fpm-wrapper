@@ -15,19 +15,28 @@ This project wraps around PHP-FPM, intercepting its logs and exposing Prometheus
 
 ## Available Configuration Options
 
-The following options can be configured via command-line flags or environment variables:
+The following options can be configured via command-line flags or environment variables.
+The name of the environment variable is the name of the flag in upper case, with `_` instead of `-`:
+for example, `FPM_CONFIG` for `--fpm-config`. A flag takes precedence over its environment variable.
+Run `docker-fpm-wrapper --help` to see all options.
+
+The wrapper passes the arguments after `--` to php-fpm:
+
+```sh
+docker-fpm-wrapper -f /usr/local/sbin/php-fpm -- -d memory_limit=256M
+```
 
 - **--log-level**
-    - *Description:* Sets the internal log level. Use `-1` for debug-level logging.
+    - *Description:* Sets the internal log level: a name (`debug`, `info`, `warn`, `error`) or a number from `-1` (debug) to `5` (fatal).
     - *Default:* `-1`
 
 - **--log-encoder**
-    - *Description:* Chooses the internal logging encoder.
+    - *Description:* Chooses the internal logging encoder: `auto`, `console`, or `json`. `auto` is `console` on a terminal and `json` otherwise.
     - *Default:* `auto`
 
 - **--fpm, -f**
     - *Description:* Path to the PHP-FPM executable.
-    - *Default:* _(No default, must be provided if not in PATH)_
+    - *Default:* _(Required)_
 
 - **--fpm-config, -c**
     - *Description:* Path to the PHP-FPM configuration file.

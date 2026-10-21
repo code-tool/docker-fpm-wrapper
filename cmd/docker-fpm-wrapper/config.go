@@ -1,90 +1,60 @@
 package main
 
 import (
-	"strings"
+	"fmt"
+	"slices"
 	"time"
 
-	"github.com/FZambia/viper-lite"
+	"github.com/jessevdk/go-flags"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/spf13/pflag"
+
+	"github.com/code-tool/docker-fpm-wrapper/internal/zapx"
 )
 
+// Config is the config of the wrapper. A flag takes precedence over its environment variable.
 type Config struct {
-	LogLevel   string `mapstructure:"log-level"`
-	LogEncoder string `mapstructure:"log-encoder"`
+	LogLevel   zapx.LogLevel `long:"log-level" env:"LOG_LEVEL" default:"-1" description:"Log level: a name (debug, info, warn, error) or a number (-1 is debug)"`
+	LogEncoder string        `long:"log-encoder" env:"LOG_ENCODER" default:"auto" choice:"auto" choice:"console" choice:"json" description:"Internal logging encoder"`
 
-	FpmPath       string `mapstructure:"fpm"`
-	FpmConfigPath string `mapstructure:"fpm-config"`
+	FpmPath       string `short:"f" long:"fpm" env:"FPM" required:"true" description:"Path to php-fpm"`
+	FpmConfigPath string `short:"c" long:"fpm-config" env:"FPM_CONFIG" default:"/etc/php/php-fpm.conf" description:"Path to the php-fpm config file"`
 
-	FpmNoErrlogProxy  bool `mapstructure:"fpm-no-errlog"`
-	FpmNoSlowlogProxy bool `mapstructure:"fpm-no-slowlog"`
-
-	// Logging proxy section
-	WrapperPipe    string `mapstructure:"wrapper-pipe"`
-	WrapperSocket  string `mapstructure:"wrapper-socket"`
-	LineBufferSize int    `mapstructure:"line-buffer-size"`
-
-	//
-	Listen      string `mapstructure:"listen"`
-	MetricsPath string `mapstructure:"metrics-path"`
-
-	ShutdownDelay time.Duration `mapstructure:"shutdown-delay"`
-
-	SessionCleanupInterval time.Duration `mapstructure:"session-cleanup-interval"`
-}
-
-func parseCommandLineFlags() {
-	pflag.String("log-level", "-1", "Log level. -1 debug ")
-	pflag.String("log-encoder", "auto", "Internal logging encoder")
-
-	pflag.StringP("fpm", "f", "", "path to php-fpm")
-	pflag.StringP("fpm-config", "c", "/etc/php/php-fpm.conf", "path to php-fpm config file")
-
-	pflag.Bool("fpm-no-errlog", false, "Disable php-fpm errlog parsing and proxy")
-	pflag.Bool("fpm-no-slowlog", false, "Disable php-fpm slowlog parsing and proxy")
+	FpmNoErrlogProxy  bool `long:"fpm-no-errlog" env:"FPM_NO_ERRLOG" description:"Disable php-fpm errlog parsing and proxy"`
+	FpmNoSlowlogProxy bool `long:"fpm-no-slowlog" env:"FPM_NO_SLOWLOG" description:"Disable php-fpm slowlog parsing and proxy"`
 
 	// Logging proxy section
-	pflag.StringP("wrapper-pipe", "p", "/tmp/fpm-wrapper-pipe", "path to logging pipe, set '' to disable")
-	pflag.StringP("wrapper-socket", "s", "/tmp/fpm-wrapper.sock", "path to logging socket, set null to disable")
-	pflag.Uint("line-buffer-size", 16*1024, "Max log line size (in bytes)")
+	WrapperPipe    string `short:"p" long:"wrapper-pipe" env:"WRAPPER_PIPE" default:"/tmp/fpm-wrapper-pipe" description:"Path to the logging pipe, set '' to disable"`
+	WrapperSocket  string `short:"s" long:"wrapper-socket" env:"WRAPPER_SOCKET" default:"/tmp/fpm-wrapper.sock" description:"Path to the logging socket, set null to disable"`
+	LineBufferSize int    `long:"line-buffer-size" env:"LINE_BUFFER_SIZE" default:"16384" description:"Max log line size (in bytes)"`
 
 	// Prom section
-	pflag.String("listen", ":8080", "prometheus statistic addr")
-	pflag.String("metrics-path", "/metrics", "prometheus statistic path")
+	Listen      string `long:"listen" env:"LISTEN" default:":8080" description:"Address of the Prometheus metrics endpoint"`
+	MetricsPath string `long:"metrics-path" env:"METRICS_PATH" default:"/metrics" description:"Path of the Prometheus metrics endpoint"`
 
-	pflag.Duration("shutdown-delay", 500*time.Millisecond, "Delay before process shutdown")
+	ShutdownDelay time.Duration `long:"shutdown-delay" env:"SHUTDOWN_DELAY" default:"500ms" description:"Delay before process shutdown"`
 
-	pflag.Duration("session-cleanup-interval", 0, "Interval of the removal of expired session files, 0 to disable")
-
-	pflag.Parse()
+	SessionCleanupInterval time.Duration `long:"session-cleanup-interval" env:"SESSION_CLEANUP_INTERVAL" default:"0" description:"Interval of the removal of expired session files, 0 to disable"`
 }
 
-func parseAllFlags() error {
-	parseCommandLineFlags()
-
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-
-	return viper.BindPFlags(pflag.CommandLine)
-}
-
-func CreateConfigFromViper(v *viper.Viper) (*Config, error) {
-	var conf Config
-
-	err := v.UnmarshalExact(&conf)
-
-	return &conf, err
-}
-
-func createConfig() (*Config, error) {
-	if err := parseAllFlags(); err != nil {
-		return nil, err
+// createConfig parses the command line and the environment. It returns the arguments after
+// "--": the wrapper passes them to php-fpm.
+func createConfig(args []string) (*Config, []string, error) {
+	var fpmArgs []string
+	if i := slices.Index(args, "--"); i >= 0 {
+		args, fpmArgs = args[:i], args[i+1:]
 	}
 
-	config, err := CreateConfigFromViper(viper.GetViper())
+	var config Config
+
+	parser := flags.NewParser(&config, flags.HelpFlag)
+	rest, err := parser.ParseArgs(args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return config, nil
+	if len(rest) > 0 {
+		return nil, nil, fmt.Errorf("unexpected arguments %q: put the arguments of php-fpm after --", rest)
+	}
+
+	return &config, fpmArgs, nil
 }

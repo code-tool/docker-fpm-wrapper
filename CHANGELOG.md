@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 ### Changed
 
 - The minimum Go version is 1.27. Update all dependencies.
+- Parse the flags and the environment variables with `go-flags` instead of `pflag` and `viper-lite`. The names of the flags and the environment variables do not change. These behaviors change:
+  - An empty environment variable sets an empty value. For example, `WRAPPER_PIPE=` disables the pipe. Before, the wrapper ignored empty environment variables.
+  - An argument before `--` that is not a flag of the wrapper stops the wrapper at start. Before, the wrapper ignored it. The wrapper passes the arguments after `--` to php-fpm, as before.
+  - `--log-level` accepts a name or a number from `-1` to `5`. Other values stop the wrapper at start.
+  - `--help` shows the environment variables and the defaults, and exits with code 0.
 - The release binaries are static (`CGO_ENABLED=0`). The `linux/amd64` binary of 1.0.2 needed glibc and did not start on Alpine images.
 - Replace the manual e2e test with automated e2e tests on testcontainers-go.
 - Replace Travis CI with GitHub Actions: lint, unit tests, and e2e tests on PHP 8.2–8.5.
