@@ -1,7 +1,6 @@
 package applog
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -58,7 +57,7 @@ func (l *SockDataListener) initSocket() error {
 		if err == nil {
 			_ = c.Close()
 			// socket exists and listening
-			return errors.New(fmt.Sprintf("Socket %s already exists and listening", l.socketPath))
+			return fmt.Errorf("socket %s already exists and listening", l.socketPath)
 		}
 
 		err = os.Remove(l.socketPath)

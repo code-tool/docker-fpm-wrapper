@@ -58,6 +58,10 @@ func main() {
 	}
 
 	log, err := createLogger(cfg.LogEncoder, logLever, syncStderr)
+	if err != nil {
+		fmt.Printf("Can't create logger: %v\n", err)
+		os.Exit(1)
+	}
 
 	if cfg.FpmPath == "" {
 		log.Error("php-fpm path not set")
@@ -99,14 +103,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if false == cfg.FpmNoErrlogProxy && fpmConfig.ErrorLog != "syslog" {
+	if !cfg.FpmNoErrlogProxy && fpmConfig.ErrorLog != "syslog" {
 		if err := startErrLogProxy(ctx, log.Named("php-fpm"), fpmConfig.ErrorLog); err != nil {
 			log.Error("can't start err_log proxy", zap.String("path", fpmConfig.ErrorLog), zap.Error(err))
 			os.Exit(1)
 		}
 	}
 
-	if false == cfg.FpmNoSlowlogProxy {
+	if !cfg.FpmNoSlowlogProxy {
 		if err = startSlowlogProxies(ctx, log.Named("php-fpm"), fpmConfig.Pools); err != nil {
 			log.Error("Can't start slowlog proxies", zap.Error(err))
 			os.Exit(1)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -137,13 +136,18 @@ func (c *Cleaner) touchOpenFiles(procName string, savePath string) error {
 }
 
 func (c *Cleaner) removeSessionFiles(savePath string, cutoff time.Duration) error {
-	fileInfo, err := ioutil.ReadDir(savePath)
+	entries, err := os.ReadDir(savePath)
 	if err != nil {
 		return err
 	}
 	now := time.Now()
-	for _, info := range fileInfo {
-		if info.IsDir() || !strings.HasPrefix(info.Name(), "sess_") {
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "sess_") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
 			continue
 		}
 
