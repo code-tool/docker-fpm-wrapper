@@ -1,10 +1,9 @@
 <?php
 
-declare(strict_types=1);
-
 // Writes lines to the log socket and to the log pipe of the wrapper.
+// The e2e tests also run on PHP 5.6: do not use the syntax of PHP 7 and later.
 
-function writeToSocket(string $data): void
+function writeToSocket($data)
 {
     $socket = stream_socket_client(getenv('FPM_WRAPPER_SOCK'), $errorCode, $errorMessage, 1.0);
     if ($socket === false) {
@@ -15,7 +14,7 @@ function writeToSocket(string $data): void
     fclose($socket);
 }
 
-function writeToPipe(string $data): void
+function writeToPipe($data)
 {
     $pipe = fopen(getenv('FPM_WRAPPER_PIPE'), 'ab');
     if ($pipe === false) {

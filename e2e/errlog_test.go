@@ -17,8 +17,14 @@ func TestErrorLogProxy(t *testing.T) {
 
 	// The "raw" pool writes a line in an unknown format to the error log before the "www" pool
 	// writes its line. The wrapper must write the raw line without a change and keep parsing.
-	assert.Equal(t, "ok", w.mustRequest(t, rawPort, "stderr.php", "message=raw+stderr+line"))
-	w.waitForLine(t, "raw stderr line")
+	t.Run("raw line is written without a change", func(t *testing.T) {
+		if !env.hasDecorateWorkersOutput() {
+			t.Skip("php-fpm before PHP 7.3 has no decorate_workers_output")
+		}
+
+		assert.Equal(t, "ok", w.mustRequest(t, rawPort, "stderr.php", "message=raw+stderr+line"))
+		w.waitForLine(t, "raw stderr line")
+	})
 
 	assert.Equal(t, "ok", w.mustRequest(t, wwwPort, "stderr.php", ""))
 

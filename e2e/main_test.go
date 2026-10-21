@@ -6,11 +6,9 @@ package e2e
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -34,9 +32,9 @@ const (
 	eventuallyTick    = 50 * time.Millisecond
 )
 
-// wrapperBinary is the path of the wrapper binary on the host. TestMain builds the binary once
-// for all tests, and the go tool gives no other way to share it with the tests.
-var wrapperBinary string //nolint:gochecknoglobals // TestMain sets it before the tests start.
+// env holds the facts that TestMain finds once for all tests. The go tool gives no other way
+// to share them with the tests.
+var env suite //nolint:gochecknoglobals // TestMain sets it before the tests start.
 
 func TestMain(m *testing.M) {
 	os.Exit(run(m))
@@ -50,27 +48,13 @@ func run(m *testing.M) int {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	wrapperBinary = filepath.Join(dir, "docker-fpm-wrapper")
-	if err := buildWrapper(wrapperBinary); err != nil {
+	env, err = newSuite(context.Background(), dir, phpImage())
+	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
 	return m.Run()
-}
-
-// buildWrapper builds a static Linux binary for the architecture of the host.
-func buildWrapper(output string) error {
-	cmd := exec.Command("go", "build", "-o", output, "../cmd/docker-fpm-wrapper")
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+runtime.GOARCH)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("build the wrapper: %w", err)
-	}
-
-	return nil
 }
 
 func phpImage() string {

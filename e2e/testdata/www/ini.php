@@ -1,5 +1,3 @@
 <?php
 
-declare(strict_types=1);
-
-echo ini_get((string) ($_GET['name'] ?? ''));
+echo ini_get(isset($_GET['name']) ? $_GET['name'] : '');

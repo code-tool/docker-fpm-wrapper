@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org).
   - `--help` shows the environment variables and the defaults, and exits with code 0.
 - The release binaries are static (`CGO_ENABLED=0`). The `linux/amd64` binary of 1.0.2 needed glibc and did not start on Alpine images.
 - Replace the manual e2e test with automated e2e tests on testcontainers-go.
-- Replace Travis CI with GitHub Actions: lint, unit tests, and e2e tests on PHP 8.2–8.5.
+- Replace Travis CI with GitHub Actions: lint, unit tests, and e2e tests on PHP 5.6, 7.4, and 8.2–8.5.
 
 ### Fixed
 

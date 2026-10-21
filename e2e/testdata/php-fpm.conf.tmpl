@@ -1,4 +1,5 @@
-; The php-fpm config for the e2e tests.
+; The php-fpm config for the e2e tests. TestMain renders it with text/template for the PHP
+; version of the image: decorate_workers_output is PHP 7.3+.
 ; The wrapper replaces error_log and slowlog with FIFOs and parses them.
 
 [global]
@@ -42,4 +43,6 @@ slowlog = /tmp/php-fpm-$pool.slow.log
 request_slowlog_timeout = 1
 clear_env = no
 catch_workers_output = yes
+{{- if .DecorateWorkersOutput}}
 decorate_workers_output = no
+{{- end}}

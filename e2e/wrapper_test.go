@@ -29,8 +29,8 @@ func containerFiles(t *testing.T) []testcontainers.ContainerFile {
 	t.Helper()
 
 	files := []testcontainers.ContainerFile{
-		{HostFilePath: wrapperBinary, ContainerFilePath: wrapperPath, FileMode: 0o755},
-		{HostFilePath: "testdata/php-fpm.conf", ContainerFilePath: fpmConfigPath, FileMode: 0o644},
+		{HostFilePath: env.wrapperBinary, ContainerFilePath: wrapperPath, FileMode: 0o755},
+		{HostFilePath: env.fpmConfig, ContainerFilePath: fpmConfigPath, FileMode: 0o644},
 		{HostFilePath: "testdata/invalid-php-fpm.conf", ContainerFilePath: invalidFpmConfigPath, FileMode: 0o644},
 	}
 

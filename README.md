@@ -100,7 +100,8 @@ Run the checks before you push:
 - `make e2e` runs the end-to-end tests. These tests need Docker.
 
 The end-to-end tests start the wrapper with php-fpm in a container (testcontainers-go).
-The default image is `php:8.5-fpm-alpine`. To use a different image, set `E2E_PHP_IMAGE`:
+The default image is `php:8.5-fpm-alpine`. CI also runs the tests on PHP 5.6, 7.4, and 8.2–8.5.
+The PHP scripts of the tests must work on PHP 5.6. To use a different image, set `E2E_PHP_IMAGE`:
 
 ```sh
 E2E_PHP_IMAGE=php:8.2-fpm make e2e
