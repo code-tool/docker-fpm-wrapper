@@ -1,26 +1,40 @@
+name: Release
+
 on:
   release:
     types: [created]
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yaml
+
   releases-matrix:
     name: Release Go Binary
+    needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       matrix:
         goos: [linux, darwin]
         goarch: [amd64, arm64]
+    env:
+      # A static binary runs on both glibc (Debian) and musl (Alpine) images.
+      CGO_ENABLED: "0"
     steps:
-      - uses: actions/checkout@v3
-      - uses: wangyoucao577/go-release-action@v1
+      - uses: actions/checkout@v7
+      - uses: wangyoucao577/go-release-action@v1.55
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
+          goversion: go.mod
           project_path: "./cmd/docker-fpm-wrapper"
           binary_name: "docker-fpm-wrapper"
-          extra_files: LICENSE README.md
+          ldflags: "-s -w"
+          sha256sum: true
+          extra_files: LICENSE README.md CHANGELOG.md

@@ -63,3 +63,18 @@ The following options can be configured via command-line flags or environment va
 - **--shutdown-delay**
     - *Description:* Delay before the process shutdown to allow graceful termination.
     - *Default:* `500ms`
+
+## Development
+
+Run the checks before you push:
+
+- `make lint` runs `golangci-lint`.
+- `make test` runs the unit tests.
+- `make e2e` runs the end-to-end tests. These tests need Docker.
+
+The end-to-end tests start the wrapper with php-fpm in a container (testcontainers-go).
+The default image is `php:8.5-fpm-alpine`. To use a different image, set `E2E_PHP_IMAGE`:
+
+```sh
+E2E_PHP_IMAGE=php:8.2-fpm make e2e
+```

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- The minimum Go version is 1.27. Update all dependencies.
+- The release binaries are static (`CGO_ENABLED=0`). The `linux/amd64` binary of 1.0.2 needed glibc and did not start on Alpine images.
+- Replace the manual e2e test with automated e2e tests on testcontainers-go.
+- Replace Travis CI with GitHub Actions: lint, unit tests, and e2e tests on PHP 8.2–8.5.
+
+### Fixed
+
+- The wrapper exits with an error when `--log-encoder` has an unknown value. Before, it panicked.
+
 ## [1.0.1] - 2025-01-10
 
 ### Fixed
