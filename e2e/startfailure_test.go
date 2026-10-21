@@ -66,7 +66,7 @@ func TestStartFailure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctr := runContainer(t, wait.ForExit(), newLogCollector(), tt.args...)
+			ctr := runContainer(t, "www-data", wait.ForExit(), newLogCollector(), tt.args...)
 
 			state, err := ctr.State(t.Context())
 			require.NoError(t, err)

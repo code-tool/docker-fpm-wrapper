@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 
 - `--shutdown-delay` also applies to SIGQUIT. The php-fpm images have `STOPSIGNAL SIGQUIT`, so Docker and Kubernetes stopped php-fpm without the delay.
 - The error log proxy writes a line in an unknown format to stderr without a change and continues. Before, it stopped at the first such line, and all next entries of the error log were lost. Such lines come, for example, from a pool with `decorate_workers_output = no`.
+- The wrapper pipe (`FPM_WRAPPER_PIPE`) has mode `0666` for all umask values. Before, the umask gave `0644`, and workers that run as a different user than the master could not write to the pipe.
 - The wrapper exits with an error when `--log-encoder` has an unknown value. Before, it panicked.
 
 ## [1.0.1] - 2025-01-10

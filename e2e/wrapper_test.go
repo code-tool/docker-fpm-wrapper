@@ -48,9 +48,10 @@ func containerFiles(t *testing.T) []testcontainers.ContainerFile {
 	return files
 }
 
-// runContainer starts the wrapper as the entrypoint of a php-fpm container. The container runs
-// as www-data, as a container in Kubernetes usually does.
-func runContainer(t *testing.T, strategy wait.Strategy, logs testcontainers.LogConsumer, args ...string) *testcontainers.DockerContainer {
+// runContainer starts the wrapper as the entrypoint of a php-fpm container that runs as user.
+func runContainer(
+	t *testing.T, user string, strategy wait.Strategy, logs testcontainers.LogConsumer, args ...string,
+) *testcontainers.DockerContainer {
 	t.Helper()
 
 	ctr, err := testcontainers.Run(t.Context(), phpImage(),
@@ -59,7 +60,7 @@ func runContainer(t *testing.T, strategy wait.Strategy, logs testcontainers.LogC
 		testcontainers.WithCmd(args...),
 		testcontainers.WithExposedPorts(wwwPort, rawPort, metricsPort),
 		testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.User = "www-data"
+			config.User = user
 		}),
 		testcontainers.WithLogConsumers(logs),
 		testcontainers.WithWaitStrategy(strategy),
@@ -79,9 +80,16 @@ type wrapper struct {
 	metricsURL string
 }
 
-// startWrapper starts the wrapper with the e2e php-fpm config and waits until php-fpm and the
-// metrics endpoint are ready. The extra arguments go after the default arguments.
+// startWrapper starts the wrapper as www-data, as a container in Kubernetes usually runs.
 func startWrapper(t *testing.T, extraArgs ...string) *wrapper {
+	t.Helper()
+
+	return startWrapperAs(t, "www-data", extraArgs...)
+}
+
+// startWrapperAs starts the wrapper as user with the e2e php-fpm config and waits until php-fpm
+// and the metrics endpoint are ready. The extra arguments go after the default arguments.
+func startWrapperAs(t *testing.T, user string, extraArgs ...string) *wrapper {
 	t.Helper()
 
 	args := append([]string{"--fpm", fpmPath, "--fpm-config", fpmConfigPath, "--listen", ":8080"}, extraArgs...)
@@ -92,7 +100,7 @@ func startWrapper(t *testing.T, extraArgs ...string) *wrapper {
 	)
 
 	logs := newLogCollector()
-	ctr := runContainer(t, strategy, logs, args...)
+	ctr := runContainer(t, user, strategy, logs, args...)
 
 	fcgiAddrs := make(map[string]string)
 	for _, port := range []string{wwwPort, rawPort} {

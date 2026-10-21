@@ -15,7 +15,7 @@ func startErrLogProxy(ctx context.Context, log *zap.Logger, unparsedOut io.Write
 		return nil
 	}
 
-	f, err := createFIFOByPathCtx(ctx, fPath)
+	f, err := createFIFOByPathCtx(ctx, fPath, fpmLogPipePerm)
 	if err != nil {
 		return err
 	}

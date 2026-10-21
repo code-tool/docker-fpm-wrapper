@@ -88,7 +88,7 @@ func main() {
 	if cfg.WrapperPipe != "" {
 		env = append(env, fmt.Sprintf("FPM_WRAPPER_PIPE=%s", cfg.WrapperPipe))
 
-		wrapperPipe, err := createFIFOByPathCtx(ctx, cfg.WrapperPipe)
+		wrapperPipe, err := createFIFOByPathCtx(ctx, cfg.WrapperPipe, wrapperPipePerm)
 		if err != nil {
 			log.Error("can't create pipe", zap.Error(err), zap.String("path", cfg.WrapperPipe))
 			os.Exit(1)
