@@ -11,46 +11,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGracefulShutdown sends SIGTERM to the wrapper while php-fpm serves a request.
+// TestGracefulShutdown sends a stop signal to the wrapper while php-fpm serves a request.
 // The wrapper must keep php-fpm running for --shutdown-delay, then stop it gracefully.
 func TestGracefulShutdown(t *testing.T) {
 	t.Parallel()
 
-	const shutdownDelay = time.Second
-	w := startWrapper(t, "--shutdown-delay", shutdownDelay.String())
+	tests := []struct {
+		name   string
+		signal string
+	}{
+		{name: "SIGTERM", signal: "TERM"},
+		// Docker and Kubernetes send the STOPSIGNAL of the image. The php-fpm images use SIGQUIT.
+		{name: "SIGQUIT", signal: "QUIT"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	var wg sync.WaitGroup
+			const shutdownDelay = time.Second
+			w := startWrapper(t, "--shutdown-delay", shutdownDelay.String())
 
-	var slowBody string
-	var slowErr error
-	wg.Go(func() {
-		slowBody, slowErr = w.request("sleep.php", "seconds=3")
-	})
+			var wg sync.WaitGroup
 
-	// The status request itself is one active process.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.GreaterOrEqual(c, w.poolGauge(t.Context(), c, "phpfpm_active_processes", "www"), float64(2))
-	}, eventuallyTimeout, eventuallyTick)
+			var slowBody string
+			var slowErr error
+			wg.Go(func() {
+				slowBody, slowErr = w.request("sleep.php", "seconds=3")
+			})
 
-	// Do not use "docker stop": the php-fpm images have "STOPSIGNAL SIGQUIT".
-	stopStart := time.Now()
-	exitCode, _, err := w.ctr.Exec(t.Context(), []string{"sh", "-c", "kill -TERM 1"})
-	require.NoError(t, err)
-	require.Equal(t, 0, exitCode)
+			// The status request itself is one active process.
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				assert.GreaterOrEqual(c, w.poolGauge(t.Context(), c, "phpfpm_active_processes", "www"), float64(2))
+			}, eventuallyTimeout, eventuallyTick)
 
-	// php-fpm accepts new requests during the shutdown delay.
-	time.Sleep(shutdownDelay / 3)
-	assert.Equal(t, "ok", w.mustRequest(t, "index.php", ""))
+			stopStart := time.Now()
+			exitCode, _, err := w.ctr.Exec(t.Context(), []string{"sh", "-c", "kill -" + tt.signal + " 1"})
+			require.NoError(t, err)
+			require.Equal(t, 0, exitCode)
 
-	wg.Wait()
-	require.NoError(t, slowErr)
-	assert.Equal(t, "done", slowBody)
+			// php-fpm accepts new requests during the shutdown delay.
+			time.Sleep(shutdownDelay / 3)
+			assert.Equal(t, "ok", w.mustRequest(t, "index.php", ""))
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		state, err := w.ctr.State(t.Context())
-		require.NoError(c, err)
-		require.False(c, state.Running)
-		assert.Equal(c, 0, state.ExitCode)
-	}, eventuallyTimeout, eventuallyTick)
-	assert.GreaterOrEqual(t, time.Since(stopStart), shutdownDelay)
+			wg.Wait()
+			require.NoError(t, slowErr)
+			assert.Equal(t, "done", slowBody)
+
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				state, err := w.ctr.State(t.Context())
+				require.NoError(c, err)
+				require.False(c, state.Running)
+				assert.Equal(c, 0, state.ExitCode)
+			}, eventuallyTimeout, eventuallyTick)
+			assert.GreaterOrEqual(t, time.Since(stopStart), shutdownDelay)
+		})
+	}
 }

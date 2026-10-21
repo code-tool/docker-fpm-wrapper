@@ -61,7 +61,7 @@ The following options can be configured via command-line flags or environment va
     - *Default:* `/metrics`
 
 - **--shutdown-delay**
-    - *Description:* Delay before the process shutdown to allow graceful termination.
+    - *Description:* Delay before the process shutdown to allow graceful termination. The wrapper waits on SIGTERM and SIGQUIT, then sends SIGQUIT to php-fpm.
     - *Default:* `500ms`
 
 ## Development

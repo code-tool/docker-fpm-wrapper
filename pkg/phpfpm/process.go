@@ -46,8 +46,9 @@ func (p *Process) HandleSignal(signalCh chan os.Signal) {
 	for {
 		sig := <-signalCh
 
-		// k8s graceful shutdown impl
-		if sig == syscall.SIGTERM {
+		// k8s graceful shutdown impl.
+		// Docker and Kubernetes send the STOPSIGNAL of the image. The php-fpm images use SIGQUIT.
+		if sig == syscall.SIGTERM || sig == syscall.SIGQUIT {
 			if p.shutdownDelay > 0 {
 				<-time.After(p.shutdownDelay)
 			}

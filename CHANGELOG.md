@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org).
 
 ### Fixed
 
+- `--shutdown-delay` also applies to SIGQUIT. The php-fpm images have `STOPSIGNAL SIGQUIT`, so Docker and Kubernetes stopped php-fpm without the delay.
 - The wrapper exits with an error when `--log-encoder` has an unknown value. Before, it panicked.
 
 ## [1.0.1] - 2025-01-10
